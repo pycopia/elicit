@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+
+import sys
+from elicit import debugger
+
+del sys.argv[0]
+sys.exit(debugger.debug_script(sys.argv[0]))

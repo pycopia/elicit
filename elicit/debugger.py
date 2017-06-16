@@ -18,7 +18,8 @@ command interface by using the CLI module.
 
 """
 
-import sys, os
+import sys
+import os
 import linecache
 import bdb
 import re
@@ -37,6 +38,7 @@ _repr.maxother = 50
 _saferepr = _repr.repr
 
 DebuggerQuit = bdb.BdbQuit
+
 
 def find_function(funcname, filename):
     cre = re.compile(r'def\s+%s\s*[(]' % funcname)
@@ -58,6 +60,7 @@ def find_function(funcname, filename):
     fp.close()
     return answer
 
+
 def lookupmodule(filename):
     """Helper function for break/clear parsing."""
     root, ext = os.path.splitext(filename)
@@ -73,6 +76,7 @@ def lookupmodule(filename):
             return fullname
     return None
 
+
 def checkline(filename, lineno, ui):
     """Return line number of first line at or after input
     argument such that if the input points to a 'def', the
@@ -87,8 +91,7 @@ def checkline(filename, lineno, ui):
         return 0
     line = line.strip()
     # Don't allow setting breakpoint at a blank line
-    if (not line or (line[0] == '#') or
-         (line[:3] == '"""') or line[:3] == "'''"):
+    if (not line or (line[0] == '#') or (line[:3] == '"""') or line[:3] == "'''"):
         ui.print('*** Blank or comment')
         return 0
     # When a file is read in and a breakpoint is at
@@ -110,11 +113,11 @@ def checkline(filename, lineno, ui):
                         instr = ''
                 elif c == '#':
                     break
-                elif c in ('"',"'"):
+                elif c in ('"', "'"):
                     instr = c
-                elif c in ('(','{','['):
+                elif c in ('(', '{', '['):
                     brackets = brackets + 1
-                elif c in (')','}',']'):
+                elif c in (')', '}', ']'):
                     brackets = brackets - 1
             lineno = lineno+1
             line = linecache.getline(filename, lineno)
@@ -122,10 +125,12 @@ def checkline(filename, lineno, ui):
                 ui.print('*** end of file')
                 return 0
             line = line.strip()
-            if not line: continue   # Blank line
-            if brackets <= 0 and line[0] not in ('#','"',"'"):
+            if not line:
+                continue   # Blank line
+            if brackets <= 0 and line[0] not in ('#', '"', "'"):
                 break
     return lineno
+
 
 def run_editor(fname, lineno):
     if "DISPLAY" in os.environ:
@@ -135,7 +140,7 @@ def run_editor(fname, lineno):
             ed = os.environ.get("EDITOR", "/bin/vi")
     else:
         ed = os.environ.get("EDITOR", "/bin/vi")
-    cmd = "%s +%d %s" % (ed, lineno, fname) # assumes vi-like editor
+    cmd = "%s +%d %s" % (ed, lineno, fname)  # assumes vi-like editor
     os.system(cmd)
 
 
@@ -149,7 +154,7 @@ class Debugger(bdb.Bdb):
         self._io = io or console.ConsoleIO()
 
     def reset(self):
-        bdb.Bdb.reset(self) # old style class
+        bdb.Bdb.reset(self)  # old style class
         self.forget()
         self._parser = None
         theme = DebuggerTheme("%GDebug%N> ")
@@ -157,7 +162,7 @@ class Debugger(bdb.Bdb):
         self._ui.register_expansion("S", self._expansions)
 
     def _expansions(self, c):
-        if c == "S": # current frame over total frames in backtrace
+        if c == "S":  # current frame over total frames in backtrace
             return "%s/%s" % (self.curindex+1, len(self.stack))
 
     def forget(self):
@@ -215,7 +220,7 @@ class Debugger(bdb.Bdb):
         but only if we are to stop at or just below this level."""
         exc_type, exc_value, exc_traceback = exc_tuple
         frame.f_locals['__exception__'] = exc_type, exc_value
-        if type(exc_type) == type(''):
+        if isinstance(exc_type, str):
             exc_type_name = exc_type
         else:
             exc_type_name = exc_type.__name__
@@ -228,7 +233,7 @@ class Debugger(bdb.Bdb):
         self.print_stack_entry(self.stack[self.curindex])
         if self._parser is None:
             cmd = DebuggerCommands(self._ui, instance=self, aliases=CLIaliases,
-                    prompt="%GDebug%N:%S> ")
+                                   prompt="%GDebug%N:%S> ")
             ctl = cli.CommandController(self._ui, cmd)
             parser = DebuggerParser(ctl)
             self._parser = parser
@@ -379,6 +384,36 @@ class Debugger(bdb.Bdb):
         sys.call_tracing(p.run, (arg, globals, locals))
         sys.settrace(p.trace_dispatch)
 
+    def debug_script(self, filename):
+        # The script has to run in __main__ namespace (or imports from
+        # __main__ will break).
+        # So we clear up the __main__ and set several special variables
+        # (this gets rid of pdb's globals and cleans old variables on restarts).
+        import __main__
+        __main__.__dict__.clear()
+        __main__.__dict__.update({"__name__": "__main__",
+                                  "__file__": filename,
+                                  "__builtins__": __builtins__,
+                                  })
+        self.mainpyfile = self.canonic(filename)
+        try:
+            with open(filename, "rb") as fp:
+                code = compile(fp.read(), self.mainpyfile, 'exec')
+        except SyntaxError as serr:
+            self._ui.printf('%RSyntaxError%N: {}'.format(serr))
+            return 2
+        try:
+            self.run(code)
+        except SystemExit:
+            es = sys.exc_info()[1]
+            self._ui.printf(
+                "\n** %WThe program exited via sys.exit()%N. Exit status: {}".format(es))
+            return es
+        except:
+            ex, val, t = sys.exc_info()
+            self.print_exc(ex, val)
+            self.interaction(t.tb_frame, t)
+            return 99
 
 
 class DebuggerParser(cli.CommandParser):
@@ -407,8 +442,8 @@ class DebuggerParser(cli.CommandParser):
 class DebuggerCommands(cli.BaseCommands):
 
     def _setup(self, obj, prompt=None):
-        self._dbg = obj # the debugger object
-        self._obj = obj # for base class
+        self._dbg = obj  # the debugger object
+        self._obj = obj  # for base class
         self._namespace = obj.curframe.f_locals
         if prompt:
             self._environ["PS1"] = str(prompt)
@@ -593,7 +628,7 @@ class DebuggerCommands(cli.BaseCommands):
                     reply = reply + '1 crossing'
                 self._ui.print(reply + ' of breakpoint %d.' % bpnum)
             else:
-                self._ui.print( 'Will stop next time breakpoint', bpnum, 'is reached.')
+                self._ui.print('Will stop next time breakpoint', bpnum, 'is reached.')
 
     def clear(self, argv):
         """clear ...
@@ -639,14 +674,14 @@ class DebuggerCommands(cli.BaseCommands):
             else:
                 self._ui.print('Deleted breakpoint %s ' % (i,))
 
-    def where(self, argv): # backtrace
+    def where(self, argv):  # backtrace
         """where
     Print a stack trace, with the most recent frame at the bottom.
     An arrow indicates the "current frame", which determines the
     context of most commands.  'bt' is an alias for this command."""
         self._dbg.print_stack_trace()
 
-    backtrace = where # alias
+    backtrace = where  # alias
 
     def up(self, argv):
         """up
@@ -739,8 +774,10 @@ class DebuggerCommands(cli.BaseCommands):
         co = f.f_code
         dict = f.f_locals
         n = co.co_argcount
-        if co.co_flags & 4: n = n+1
-        if co.co_flags & 8: n = n+1
+        if co.co_flags & 4:
+            n = n+1
+        if co.co_flags & 8:
+            n = n+1
         for i in range(n):
             name = co.co_varnames[i]
             self._ui.print(name, '=', None)
@@ -764,8 +801,7 @@ class DebuggerCommands(cli.BaseCommands):
         if len(argv) > 1:
             for name in argv[1:]:
                 try:
-                    self._ui.print("%25.25s = %s" % \
-                                (name, _saferepr(f.f_locals[name])))
+                    self._ui.print("%25.25s = %s" % (name, _saferepr(f.f_locals[name])))
                 except KeyError:
                     self._ui.print("%r not found." % (name,))
         else:
@@ -791,10 +827,10 @@ class DebuggerCommands(cli.BaseCommands):
             # find and print local variables that were not defined when
             # compiled. These must have been "stuffed" by other code.
             extra = []
-            varnames = list(co.co_varnames) # to get list methods
+            varnames = list(co.co_varnames)  # to get list methods
             for name, val in list(local.items()):
                 try:
-                    i = varnames.index(name)
+                    varnames.index(name)
                 except ValueError:
                     extra.append("%25.25s = %s" % (name, _saferepr(val)))
             if extra:
@@ -836,7 +872,6 @@ class DebuggerCommands(cli.BaseCommands):
         filename = self._dbg.curframe.f_code.co_filename
         self._print_source(filename, first, last)
 
-
     def edit(self, argv):
         """edit
     Open your editor at the current location."""
@@ -852,9 +887,10 @@ class DebuggerCommands(cli.BaseCommands):
             value = eval(arg, self._dbg.curframe.f_globals, self._dbg.curframe.f_locals)
         except:
             t, v = sys.exc_info()[:2]
-            if type(t) == type(''):
+            if isinstance(t, str):
                 exc_type_name = t
-            else: exc_type_name = t.__name__
+            else:
+                exc_type_name = t.__name__
             self._ui.print('***', exc_type_name + ':', repr(v))
             return
         # Is it a function?
@@ -904,7 +940,9 @@ class DebuggerCommands(cli.BaseCommands):
                     break
                 else:
                     s = []
-                    s.append("%5.5s%s" % (lineno, self._ui.prompt_format(" %RB%N") if (lineno in breaklist) else "  "))
+                    s.append("%5.5s%s" % (lineno,
+                                          self._ui.prompt_format(" %RB%N") if
+                                          (lineno in breaklist) else "  "))
                     if lineno == self._dbg.curframe.f_lineno:
                         s.append(self._ui.prompt_format("%I->%N "))
                     else:
@@ -914,23 +952,24 @@ class DebuggerCommands(cli.BaseCommands):
         except KeyboardInterrupt:
             pass
 
+
 CLIaliases = {
-    "p":["print"],
-    "l":["list"],
-    "n":["next"],
-    "s":["step"],
-    "c":["cont"],
-    "ret":["returns"],
-    "r":["returns"],
-    "u":["up"],
-    "d":["down"],
-    "exec":["execute"],
-    "e":["execute"],
-    "bp":["brk"],
-    "break":["brk"],
-    "bt":["where"],
-    "q":["quit"],
-    "/":["search"],
+    "p": ["print"],
+    "l": ["list"],
+    "n": ["next"],
+    "s": ["step"],
+    "c": ["cont"],
+    "ret": ["returns"],
+    "r": ["returns"],
+    "u": ["up"],
+    "d": ["down"],
+    "exec": ["execute"],
+    "e": ["execute"],
+    "bp": ["brk"],
+    "break": ["brk"],
+    "bt": ["where"],
+    "q": ["quit"],
+    "/": ["search"],
 }
 
 
@@ -938,14 +977,18 @@ CLIaliases = {
 def run(statement, globals=None, locals=None):
     Debugger().run(statement, globals, locals)
 
+
 def runeval(expression, globals=None, locals=None):
     return Debugger().runeval(expression, globals, locals)
+
 
 def runcall(*args):
     return Debugger().runcall(*args)
 
+
 def set_trace(frame=None, start=0):
     Debugger().set_trace(frame, start)
+
 
 # post mortems used to debug
 def post_mortem(t, exc=None, val=None, io=None):
@@ -962,6 +1005,7 @@ def post_mortem(t, exc=None, val=None, io=None):
         p.print_exc(ex.__name__, val)
     p.interaction(t.tb_frame, t)
 
+
 def debug(method, *args, **kwargs):
     """Run the method and debug any exception, except syntax or user
     interrupt.
@@ -975,15 +1019,23 @@ def debug(method, *args, **kwargs):
         else:
             post_mortem(tb, ex, val)
 
+
 def pm(io=None):
     "Start debugging with the system's last traceback."
     ex, val, tb = sys.exc_info()
     post_mortem(tb, ex, val, io)
 
+
+def debug_script(filename):
+    db = Debugger()
+    db.reset()
+    sys.path[0] = os.path.dirname(filename)
+    return db.debug_script(filename)
+
+
 if __name__ == "__main__":
-    def buggy():
-        raise IOError("testme")
-    debug(buggy)
+    del sys.argv[0]
+    sys.exit(debug_script(sys.argv[0]))
 
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
