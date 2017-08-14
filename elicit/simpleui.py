@@ -21,7 +21,10 @@ import sys, os
 from ast import literal_eval
 
 
-COLUMNS, LINES = os.get_terminal_size()
+try:
+    COLUMNS, LINES = os.get_terminal_size()
+except OSError:
+    COLUMNS, LINES = 80, 24
 
 
 def default_error(text):

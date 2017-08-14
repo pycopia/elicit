@@ -22,6 +22,7 @@ from elicit import themes
 from elicit import env
 from elicit import ui
 
+import pytest
 
 def get_userinterface():
     cio = console.ConsoleIO()
@@ -29,7 +30,12 @@ def get_userinterface():
     environment = env.Environ.from_system()
     return ui.UserInterface(cio, environment, theme)
 
+@pytest.fixture
+def myui():
+    return get_userinterface()
 
+
+@pytest.mark.skip(reason="Interactive test")
 def test_ui(myui):
     myui.printf("Hello %Gworld!%N")
     inp = myui.user_input("Type something> ")

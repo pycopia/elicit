@@ -20,7 +20,7 @@ import locale
 from functools import partial
 
 
-__all__ = ['color', 'underline', 'inverse', 'box', 'imgcat',
+__all__ = ['color', 'color256', 'underline', 'inverse', 'box', 'imgcat',
 'divider', 'cowsay', 'clear', 'dedent', 'error', 'warning', 'para',
 'get_resource', 'debugger', 'init']
 
@@ -28,9 +28,13 @@ __all__ = ['color', 'underline', 'inverse', 'box', 'imgcat',
 WIDTH = LINES = _text_wrapper = _old_handler = None
 LANG, ENCODING = locale.getlocale()
 
+
 def _reset_size(sig, tr):
     global WIDTH, LINES, _text_wrapper, _old_handler
-    WIDTH, LINES = os.get_terminal_size()
+    try:
+        WIDTH, LINES = os.get_terminal_size()
+    except OSError:
+        WIDTH, LINES = 80, 24
     _text_wrapper = textwrap.TextWrapper(width=WIDTH - 10,
                                          initial_indent=" "*4,
                                          subsequent_indent=" "*4,
