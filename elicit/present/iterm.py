@@ -16,8 +16,7 @@
 Special helpers for iTerm2 on MacOS.
 """
 
-from __future__ import generator_stop
-
+import os
 import sys
 import base64
 
@@ -26,15 +25,11 @@ def imgcat(imgdata):
     sys.stdout.buffer.write(b'\x1b]1337;File=inline=1:' + base64.b64encode(imgdata) + b'\x07\n')
 
 
-def divider(img):
+def divider():
+    fn = os.path.join(os.path.dirname(__file__), "data", "separator-1.png")
+    img = open(fn, "rb").read()
     sys.stdout.buffer.write(
-        b'\x1b]1337;File=inline=1;width=100%;height=1;preserveAspectRatio=0:' + base64.b64encode(img) + b'\x07')
-
-
-if __name__ == "__main__":
-    data = open(sys.argv[1], "rb").read()
-    imgcat(data)
-    print("divider:")
-    divider(data)
+        b'\x1b]1337;File=inline=1;width=100%;height=1;preserveAspectRatio=0:' +
+        base64.b64encode(img) + b'\x07')
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

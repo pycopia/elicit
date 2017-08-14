@@ -26,9 +26,12 @@ import re
 
 from reprlib import Repr
 
+from . import exceptions
 from . import console
+from . import controller
 from . import ui
 from . import cli
+from . import themes
 
 # Create a custom safe Repr instance and increase its maxstring.
 # The default of 30 truncates error messages too easily.
@@ -144,7 +147,7 @@ def run_editor(fname, lineno):
     os.system(cmd)
 
 
-class DebuggerTheme(ui.ANSITheme):
+class DebuggerTheme(themes.ANSITheme):
     pass
 
 
@@ -234,7 +237,7 @@ class Debugger(bdb.Bdb):
         if self._parser is None:
             cmd = DebuggerCommands(self._ui, instance=self, aliases=CLIaliases,
                                    prompt="%GDebug%N:%S> ")
-            ctl = cli.CommandController(self._ui, cmd)
+            ctl = controller.CommandController(self._ui, cmd)
             parser = DebuggerParser(ctl)
             self._parser = parser
         self._parser.interact()
@@ -706,30 +709,30 @@ class DebuggerCommands(cli.BaseCommands):
     Execute the current line, stop at the first possible occasion
     (either in a function that is called or in the current function)."""
         self._dbg.set_step()
-        raise cli.CommandExit
+        raise exceptions.CommandExit()
 
     def next(self, argv):
         """next
     Continue execution until the next line in the current function
     is reached or it returns."""
         self._dbg.set_next(self._dbg.curframe)
-        raise cli.CommandExit
+        raise exceptions.CommandExit()
 
     def returns(self, argv):
         """returns
     Continue execution until the current function returns."""
         self._dbg.set_return(self._dbg.curframe)
-        raise cli.CommandExit
+        raise exceptions.CommandExit()
 
     def cont(self, arg):
         """cont
     Continue execution, only stop when a breakpoint is encountered."""
         self._dbg.set_continue()
         if self._dbg.breaks:
-            raise cli.CommandExit
+            raise exceptions.CommandExit()
         else:
             self._dbg._parser = None
-            raise cli.CommandQuit
+            raise exceptions.CommandQuit()
 
     def jump(self, argv):
         """jump lineno

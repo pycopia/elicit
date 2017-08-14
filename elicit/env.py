@@ -21,21 +21,26 @@ del re
 
 class Environ(dict):
     """Environ is a dictionary-like object that does automatic variable
-    expansion when setting new elements. It supports an extra method called
-    'export' that takes strings of the form 'name=value' that may be used to set
-     assign variable names.  The 'expand' method will return a string with variables
-    expanded from the values contained in this object.
+    expansion when setting new elements.
+
+    It supports an extra method called 'export' that takes strings of the form
+    'name=value' that may be used to set assign variable names.  The 'expand'
+    method will return a string with variables expanded from the values
+    contained in this object.
     """
 
     @classmethod
     def from_system(cls, **kwargs):
+        """Constructor that returns Environ instance pre-populated with values
+        from the process environment.
+        """
         env = cls(**kwargs)
         env.inherit()
         return env
 
     def inherit(self, env=None):
-        """Works like the 'update' method, but defaults to updating from the system
-        environment (os.environ).
+        """Works like the 'update' method, but defaults to updating from the
+        system environment (os.environ).
         """
         if env is None:
             env = os.environ
@@ -45,16 +50,17 @@ class Environ(dict):
         self.__setitem__(name, self.expand(str(val)))
 
     def export(self, nameval):
-        """Works like the export command in the bash shell. assigns the name on the left
-        of the equals sign to the value on the right, performing variable expansion if
-        necessary.
+        """Similar to the _export_ command in the bash shell.
+
+        It assigns the name on the left of the equals sign to the value on the
+        right, performing variable expansion if necessary.
         """
         name, val = nameval.split("=", 1)
         self.__setitem__(name, self.expand(str(val)))
         return name
 
     def __str__(self):
-        s = ["%s=%s" % (nv[0], nv[1]) for nv in list(self.items())]
+        s = ["%s=%s" % (nv[0], nv[1]) for nv in self.items()]
         s.sort()
         return "\n".join(s)
 

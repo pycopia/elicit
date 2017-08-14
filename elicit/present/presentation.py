@@ -1,7 +1,9 @@
-#!/usr/bin/env python3.6 -i
+#!/usr/bin/env python3.5 -i
 
 """
-An unusual way to give a presentation using Python and iTerm2. :-o
+An unusual way to give a presentation using Python.
+
+Assumes a unicode enabled terminal.
 """
 
 import os
@@ -9,27 +11,36 @@ import re
 import sys
 import base64
 import signal
+import tempfile
 import builtins
 import textwrap
 import readline
+import subprocess
 import locale
-from shutil import get_terminal_size
 from functools import partial
 
 
-WIDTH = LINES = _text_wrapper = None
+__all__ = ['color', 'underline', 'inverse', 'box', 'imgcat',
+'divider', 'cowsay', 'clear', 'dedent', 'error', 'warning', 'para',
+'get_resource', 'debugger', 'init']
+
+
+WIDTH = LINES = _text_wrapper = _old_handler = None
 LANG, ENCODING = locale.getlocale()
 
 def _reset_size(sig, tr):
-    global WIDTH, LINES, _text_wrapper
-    WIDTH, LINES = get_terminal_size()
+    global WIDTH, LINES, _text_wrapper, _old_handler
+    WIDTH, LINES = os.get_terminal_size()
     _text_wrapper = textwrap.TextWrapper(width=WIDTH - 10,
                                          initial_indent=" "*4,
                                          subsequent_indent=" "*4,
                                          replace_whitespace=True,
                                          max_lines=LINES - 4)
+    if callable(_old_handler):
+        _old_handler(sig, tr)
+
 _reset_size(signal.SIGWINCH, None)
-signal.signal(signal.SIGWINCH, _reset_size)
+_old_handler = signal.signal(signal.SIGWINCH, _reset_size)
 
 
 RESET = NORMAL = "\x1b[0m"
@@ -67,6 +78,7 @@ BLUE_BACK = "\x1b[44m"
 MAGENTA_BACK = "\x1b[45m"
 CYAN_BACK = "\x1b[46m"
 WHITE_BACK = "\x1b[47m"
+
 
 PROMPT_START_IGNORE = '\001'
 PROMPT_END_IGNORE = '\002'
@@ -118,6 +130,12 @@ def color(text, fg, bg=None, bold=False):
         raise ValueError("Bad color value: {},{}".format(fg, bg))
 
 
+def color256(text:str, fg:int, bg:int=0):
+    sys.stdout.write("\x1b[38;5;{};48;5;{}m".format(fg, bg))
+    sys.stdout.write(text)
+    sys.stdout.write(RESET)
+
+
 red = partial(color, fg="red")
 green = partial(color, fg="green")
 blue = partial(color, fg="blue")
@@ -150,13 +168,34 @@ def box(text, level=0, color=GREY):
     sys.stdout.write("\n")
 
 
-def imgcat(imgdata):
-    sys.stdout.buffer.write(b'\x1b]1337;File=inline=1:' + base64.b64encode(imgdata) + b'\x07\n')
+def xterm_divider():
+    l = os.get_terminal_size().columns - 6
+    line = '  ◀' + '═' * l + '▶\n'
+    sys.stdout.write(line)
 
 
-def divider(img):
+def iterm_divider():
+    img = get_resource("separator-1.png")
     sys.stdout.buffer.write(
-        b'\x1b]1337;File=inline=1;width=100%;height=1;preserveAspectRatio=0:' + base64.b64encode(img) + b'\x07')
+        b'\x1b]1337;File=inline=1;width=100%;height=1;preserveAspectRatio=0:' +
+        base64.b64encode(img) + b'\x07')
+
+
+def xterm_imgcat(imgdata):
+    fd, name = tempfile.mkstemp(suffix=".png")
+    os.write(fd, imgdata)
+    os.close(fd)
+    # img2txt is from the caca-utils package
+    cmd = ["img2txt", "-f", "utf8", "-W", str(WIDTH - 20), name]
+    try:
+        subprocess.call(cmd)
+    finally:
+        os.unlink(name)
+
+
+def iterm_imgcat(imgdata):
+    sys.stdout.buffer.write(b'\x1b]1337;File=inline=1:' +
+            base64.b64encode(imgdata) + b'\x07\n')
 
 
 def cowsay(text):
@@ -203,7 +242,8 @@ def para(text):
 
 
 def get_resource(name):
-    return open(os.path.join(PWD, name), "rb").read()
+    fn = os.path.join(PWD, "data", name)
+    return open(fn, "rb").read()
 
 
 class DisplayHook:
@@ -253,14 +293,44 @@ def debugger_hook(exc, value, tb):
         debugger.post_mortem(tb, exc, value)
 
 
+class PresoObject:
+
+    def __init__(self, cls, text):
+        self.cls = cls
+        self.text = text
+
+    def __call__(self, *args, **kwargs):
+        return self.cls(*args, **kwargs)
+
+    def __repr__(self):
+        return self.text
+
+
 def init(argv):
     global PWD
     PWD = os.path.realpath(os.path.dirname(argv[0]))
     builtins._ = PWD
     sys.excepthook = debugger_hook
     sys.displayhook = DisplayHook(sys.stdout)
-    sys.ps1 = "🐍  > "
+    sys.ps1 = "{}~~😄{}➤ ".format(PROMPT_GREEN, PROMPT_NORMAL)
     sys.ps2 = "more> "
+
+
+if sys.platform == "darwin":
     readline.parse_and_bind("^I rl_complete")
+    tp = os.environ.get("TERMINAL_PROGRAM")
+    if tp and "iterm" in tp.lower():
+        imgcat = iterm_imgcat
+        divider = iterm_divider
+    else:
+        imgcat = xterm_imgcat
+        divider = xterm_divider
+else:
+    readline.parse_and_bind("tab: complete")
+    readline.parse_and_bind('"\M-?": possible-completions')
+    imgcat = xterm_imgcat
+    divider = xterm_divider
+    if "256" not in os.environ.get("TERM", "xterm"):
+        warning("Colors my not display correctly.")
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab:fileencoding=utf-8

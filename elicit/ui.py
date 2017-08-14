@@ -23,141 +23,21 @@ import textwrap
 from pprint import PrettyPrinter
 
 from . import simpleui
-from . import console
-from . import env
+from . import exceptions
+from .fsm import FSM, ANY
 
-# set the PROMPT ignore depending on whether or not readline module is
-# available.
-try:
-    import readline
-    PROMPT_START_IGNORE = '\001'
-    PROMPT_END_IGNORE = '\002'
-except ImportError:
-    readline = None
-    PROMPT_START_IGNORE = ''
-    PROMPT_END_IGNORE = ''
+# for readline to not count escape sequences as taking up space on one.
+PROMPT_START_IGNORE = '\001'
+PROMPT_END_IGNORE = '\002'
 
-
-class Theme:
-    NORMAL = RESET = ""
-    BOLD = BRIGHT = ""
-    BLACK = ""
-    RED = ""
-    GREEN = ""
-    YELLOW = ""
-    BLUE = ""
-    MAGENTA = ""
-    CYAN = ""
-    WHITE = ""
-    DEFAULT = ""
-    GREY = ""
-    BRIGHTRED = ""
-    BRIGHTGREEN = ""
-    BRIGHTYELLOW = ""
-    BRIGHTBLUE = ""
-    BRIGHTMAGENTA = ""
-    BRIGHTCYAN = ""
-    BRIGHTWHITE = ""
-    UNDERSCORE = ""
-    BLINK = ""
-    help_text = WHITE
-
-    def __init__(self, ps1="> ", ps2="more> ", ps3="choose", ps4="-> "):
-        self._ps1 = ps1  # main prompt
-        self._ps2 = ps2  # more input needed
-        self._ps3 = ps3  # choose prompt
-        self._ps4 = ps4  # input prompt
-        self._setcolors()
-
-    def _set_ps1(self, new):
-        self._ps1 = str(new)
-
-    def _set_ps2(self, new):
-        self._ps2 = str(new)
-
-    def _set_ps3(self, new):
-        self._ps3 = str(new)
-
-    def _set_ps4(self, new):
-        self._ps4 = str(new)
-
-    _setcolors = lambda c: None
-    ps1 = property(lambda s: s._ps1, _set_ps1, None, "primary prompt")
-    ps2 = property(lambda s: s._ps2, _set_ps2, None, "more input needed")
-    ps3 = property(lambda s: s._ps3, _set_ps3, None, "choose prompt")
-    ps4 = property(lambda s: s._ps4, _set_ps4, None, "text input prompt")
-
-
-class BasicTheme(Theme):
-
-    @classmethod
-    def _setcolors(cls):
-        "Base class for themes. Defines interface."
-        cls.NORMAL = cls.RESET = "\x1b[0m"
-        cls.BOLD = cls.BRIGHT = "\x1b[1m"
-        cls.BLACK = ""
-        cls.RED = ""
-        cls.GREEN = ""
-        cls.YELLOW = ""
-        cls.BLUE = ""
-        cls.MAGENTA = ""
-        cls.CYAN = ""
-        cls.WHITE = ""
-        cls.DEFAULT = ""
-        cls.GREY = ""
-        cls.BRIGHTRED = ""
-        cls.BRIGHTGREEN = ""
-        cls.BRIGHTYELLOW = ""
-        cls.BRIGHTBLUE = ""
-        cls.BRIGHTMAGENTA = ""
-        cls.BRIGHTCYAN = ""
-        cls.BRIGHTWHITE = ""
-        cls.UNDERSCORE = "\x1b[4m"
-        cls.BLINK = "\x1b[5m"
-        cls.help_text = cls.WHITE
-
-
-class ANSITheme(BasicTheme):
-    """Defines tunable parameters for the UserInterface, to provide
-    different color schemes and prompts.
-    """
-
-    @classmethod
-    def _setcolors(cls):
-        # ANSI escapes for color terminals
-        cls.NORMAL = cls.RESET = "\x1b[0m"
-        cls.BOLD = cls.BRIGHT = "\x1b[01m"
-        cls.BLACK = "\x1b[30m"
-        cls.RED = "\x1b[31m"
-        cls.GREEN = "\x1b[32m"
-        cls.YELLOW = "\x1b[33m"
-        cls.BLUE = "\x1b[34m"
-        cls.MAGENTA = "\x1b[35m"
-        cls.CYAN = "\x1b[36m"
-        cls.WHITE = "\x1b[37m"
-        cls.GREY = "\x1b[30;01m"
-        cls.BRIGHTRED = "\x1b[31;01m"
-        cls.BRIGHTGREEN = "\x1b[32;01m"
-        cls.BRIGHTYELLOW = "\x1b[33;01m"
-        cls.BRIGHTBLUE = "\x1b[34;01m"
-        cls.BRIGHTMAGENTA = "\x1b[35;01m"
-        cls.BRIGHTCYAN = "\x1b[36;01m"
-        cls.BRIGHTWHITE = "\x1b[37;01m"
-        cls.DEFAULT = "\x1b[39;49m"
-        cls.UNDERSCORE = "\x1b[4m"
-        cls.BLINK = "\x1b[5m"
-        cls.help_text = cls.BRIGHTWHITE
-
-
-DefaultTheme = ANSITheme
 
 
 class UserInterface:
     """An ANSI terminal user interface for CLIs.  """
-    def __init__(self, io, environment=None, theme=None):
+    def __init__(self, io, environment, theme):
         self._io = io
-        self._env = environment or env.Environ.from_system()
-        assert hasattr(self._env, "get")
+        self._env = environment
+        assert hasattr(self._env, "get"), "Need Environ object with 'get' method"
         self._env["_"] = None
         self._cache = {}
         self.set_theme(theme)
@@ -171,8 +51,7 @@ class UserInterface:
             self._io = None
 
     def set_theme(self, theme):
-        self._theme = theme or DefaultTheme()
-        assert isinstance(self._theme, Theme), "must supply a Theme object."
+        self._theme = theme
         self._env.setdefault("PS1", self._theme.ps1)
         self._env.setdefault("PS2", self._theme.ps2)
         self._env.setdefault("PS3", self._theme.ps3)
@@ -184,7 +63,7 @@ class UserInterface:
     def print(self, *objs):
         try:
             self._io.print(*objs)
-        except console.PageQuit:
+        except exceptions.PageQuit:
             return
 
     def pprint(self, obj):
@@ -210,13 +89,13 @@ class UserInterface:
                     else:
                         ps += cs
                 self.print_obj("{}{}".format(ps, clist[-1]))
-            except console.PageQuit:
+            except exceptions.PageQuit:
                 pass
 
     def write(self, text):
         try:
             self._io.write(text)
-        except console.PageQuit:
+        except exceptions.PageQuit:
             return
 
     def printf(self, text):
@@ -587,124 +466,5 @@ class FormatWrapper:
         else:
             return self.value == other
 
-
-ANY = -1
-
-class FSM:
-
-    ANY = ANY
-
-    def __init__(self, initial_state=0):
-        self._transitions = {}   # Map (input_symbol, state) to (action, next_state).
-        self.default_transition = None
-        self.RESET = initial_state
-        self.initial_state = self.RESET
-        self._reset()
-
-    def _reset(self):
-        self.stack = []
-        self.current_state = self.initial_state
-
-    def reset(self):
-        self._reset()
-
-    def push(self, obj):
-        self.stack.append(obj)
-
-    def pop(self):
-        self.stack.pop()
-
-    def add_default_transition(self, action, next_state):
-        if action == None and next_state == None:
-            self.default_transition = None
-        else:
-            self.default_transition = (action, next_state)
-
-    def add_transition(self, input_symbol, state, action, next_state):
-        self._transitions[(input_symbol, state)] = (action, next_state)
-
-    def add_transitions(self, symbols, state, action, next_state):
-        for c in symbols:
-            self.add_transition(c, state, action, next_state)
-
-    def get_transition(self, input_symbol, state):
-        try:
-            return self._transitions[(input_symbol, state)]
-        except KeyError:
-            try:
-                return self._transitions[(ANY, state)]
-            except KeyError:
-                try:
-                    return self._transitions[(SREType, state)]
-                except KeyError:
-                    # no expression matched, so check for default
-                    if self.default_transition is not None:
-                        return self.default_transition
-                    else:
-                        raise FSMError('Transition {!r} is undefined.'.format(input_symbol))
-
-    def process(self, input_symbol):
-        action, next_state = self.get_transition(input_symbol, self.current_state)
-        if action is not None:
-            action(input_symbol, self)
-        if next_state is not None:
-            self.current_state = next_state
-
-    def process_string(self, s):
-        for c in s:
-            self.process(c)
-
-
-def get_userinterface(environment=None, theme=None, pagerprompt=None):
-    uio = console.ConsoleIO(pagerprompt=pagerprompt)
-    theme = theme or ANSITheme()
-    ui = UserInterface(uio, environment=environment, theme=theme)
-    return ui
-
-
-if __name__ == "__main__":
-    ui = get_userinterface()
-    ui.printf("Hello %Gworld!%N")
-    inp = ui.user_input("Type something> ")
-    ui.print("You typed:", inp)
-    inp = ui.user_input("%u@%h > ")
-    inp = ui.user_input("%T%t > ")
-    inp = ui.user_input("Some %[223]color%N> ")
-    inp = ui.user_input("Some %[223]%[B20]yellow back blue%N> ")
-
-    lines = []
-    for i in range(200):
-        lines.append("{}. Now is the time for all good UI to...".format(i))
-    lines.append("\n")
-    ui.write("\n".join(lines))
-
-    print(ui.prompt_format("%T %t"))
-    print(ui.prompt_format("%Ibright%N"))
-
-    print(ui.prompt_format("%rred%N"))
-    print(ui.prompt_format("%ggreen%N"))
-    print(ui.prompt_format("%yyellow%N"))
-    print(ui.prompt_format("%bblue%N"))
-    print(ui.prompt_format("%mmagenta%N"))
-    print(ui.prompt_format("%ccyan%N"))
-    print(ui.prompt_format("%wwhite%N"))
-
-    print(ui.prompt_format("%Rred%N"))
-    print(ui.prompt_format("%Ggreen%N"))
-    print(ui.prompt_format("%Yyellow%N"))
-    print(ui.prompt_format("%Bblue%N"))
-    print(ui.prompt_format("%Mmagenta%N"))
-    print(ui.prompt_format("%Ccyan%N"))
-    print(ui.prompt_format("%Wwhite%N"))
-
-    print(ui.prompt_format("%Ddefault%N"))
-    print(ui.prompt_format("wrapped%ntext"))
-    print(ui.prompt_format("%l tty %l"))
-    print(ui.prompt_format("%h hostname %h"))
-    print(ui.prompt_format("%u username %u"))
-    print(ui.prompt_format("%$ priv %$"))
-    print(ui.prompt_format("%d cwd %d"))
-    print(ui.prompt_format("%L SHLVL %L"))
-    print(ui.prompt_format("%{PS4}"))
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

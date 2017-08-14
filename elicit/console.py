@@ -21,9 +21,7 @@ import os
 import signal
 import tty
 
-
-class PageQuit(Exception):
-    pass
+from . import exceptions
 
 
 class ConsoleIO:
@@ -111,7 +109,7 @@ class ConsoleIO:
             if self._writtenlines >= rows:
                 c = self._pause()
                 if c in "qQ":
-                    raise PageQuit()
+                    raise exceptions.PageQuit()
                 elif c == "\r":
                     rows = needed = 1
                 else:
