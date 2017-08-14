@@ -13,6 +13,7 @@ setup(name=NAME, version=VERSION,
     scripts = glob("bin/*"),
     setup_requires=['setuptools_scm'],
     use_scm_version=True,
+    test_suite="tests",
     tests_require=['pytest'],
 
     description = "Library for making simple command interfaces.",

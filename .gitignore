@@ -9,7 +9,8 @@
 *.egg-info
 dist
 build
-eggs
+.eggs
+.cache
 sdist
 develop-eggs
 .installed.cfg

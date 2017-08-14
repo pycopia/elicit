@@ -1,6 +1,6 @@
 # Makefile to simplify some common operations.
 
-PYVER := 3.6
+PYVER := 3.5
 PYSUFFIX := m
 PYTHON := $(shell python$(PYVER)$(PYSUFFIX)-config --prefix)/bin/python$(PYVER)
 
@@ -35,19 +35,22 @@ test:
 
 clean:
 	$(PYTHON) setup.py clean
-	rm -rf .cache
+	find . -depth -type d -name __pycache__ -exec rm -rf {} \;
 
 distclean: clean
 	rm -rf costest.egg-info
 	rm -rf dist
 	rm -rf build
 	make -C docs clean
+	rm -rf .cache
+	rm -rf .eggs
 
 sdist: requirements
 	$(PYTHON) setup.py sdist
 
 publish:
 	$(PYTHON) setup.py sdist upload
+	$(PYTHON) setup.py bdist upload
 
 docs:
 	make -C docs html
