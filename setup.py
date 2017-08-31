@@ -4,10 +4,9 @@ from setuptools import setup
 from glob import glob
 
 NAME = "elicit"
-VERSION = "0.1"
 
 
-setup(name=NAME, version=VERSION,
+setup(name=NAME,
     packages = ["elicit"],
     install_requires = [],
     scripts = glob("bin/*"),
