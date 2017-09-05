@@ -17,15 +17,34 @@
 Controller component module.
 """
 
+import sys
+
+from . import env
+from . import cli
+from . import exceptions
+from . import docopt
+
 
 class CommandController:
-    def __init__(self, ui, cmd, env):
-        self._commands = cmd
+    """Controller wraps a UI and object with commands.
+
+    Manageds completion scopes, calling methods on commands and dealing with
+    errors.
+
+    Provides built-in docopt support. The method's docstring is inspected for
+    *Usage:* section and arguments parsed, with the argument dictionary passed as
+    parameter to to command method.
+
+    With our without a *Usage* section, the arguments will have an "argv" key
+    referencing the original argv value from the parser.
+    """
+    def __init__(self, commands):
+        self.commands = commands
         self._completion_scopes = {}
         self._completers = []
         self._command_list = None
-        self._ui = ui
-        self.environ = env
+        self._ui = commands._ui
+        self.environ = self._ui.environ
 
     # Overrideable exception hook method - do something with command exceptions.
     def except_hook(self, ex, val, tb):
@@ -33,14 +52,17 @@ class CommandController:
 
     # Override this if your subcommand passes something useful back
     # via a parameter to the CommandQuit exception.
-    def handle_subcommand(self, value):
+    def handle_subcommand_exit(self, value):
         pass
+
+    def finalize(self):
+        self.commands.finalize()
 
     # completer management methods
     def add_completion_scope(self, name, complist):
         self._completion_scopes[name] = list(complist)
 
-    def get_completion_scope(self, name="commands"):
+    def get_completion_scope(self, name):
         return self._completion_scopes.get(name, [])
 
     def remove_completion_scope(self, name):
@@ -67,58 +89,46 @@ class CommandController:
         if not argv or not argv[0] or argv[0].startswith("_"):
             return 2
         argv = self._expand_aliases(argv)
-        # special escape characters...
-        if argv[0].startswith("!"):  # bang-escape reads pipe
-            argv[0] = argv[0][1:]
-            argv.insert(0, "pipe")
-        elif argv[0].startswith("%"):  # percent-escape spawns pty
-            argv[0] = argv[0][1:]
-            argv.insert(0, "spawn")
-        elif argv[0].startswith("#"):  # A comment
+        if argv[0].startswith("#"):  # A comment
             return 0
         # ok, now fetch the real method...
+        meth = getattr(self.commands, argv[0],
+                       self.commands.default_command)
         try:
-            meth = getattr(self._commands, argv[0])
-        except AttributeError:
-            meth = self._commands.default_command
+            arguments = docopt.docopt(meth.__doc__,
+                                      argv=argv[1:],
+                                      help=False, version=None,
+                                      options_first=True)
+            arguments["argv"] = argv
+        except docopt.DocoptLanguageError:
+            arguments = {"argv": argv}
+        except docopt.DocoptExit as docerr:
+            self._ui.warning(str(docerr))
+            return 2
         # ...and exec it.
         try:
-            rv = meth(argv)  # call the method
-        except (NewCommand, CommandQuit, CommandExit, KeyboardInterrupt):
+            rv = meth(arguments)  # call the method with arguments dict
+        except (exceptions.NewCommand,
+                exceptions.CommandQuit,
+                exceptions.CommandExit,
+                KeyboardInterrupt):
             raise  # pass these through to parser
-        except CLISyntaxError as err:
-            self._ui.printf("%RSyntax error%N: {}".format(str(err.value)))
-            self._ui.help_local(meth.__doc__)
-        except IndexError:  # may have tried to get non-existent argv value.
-            ex, val, tb = sys.exc_info()
-            lev = 0
-            t = tb
-            while t.tb_next is not None:
-                t = t.tb_next
-                lev += 1
-            if lev == 1:  # Happened inside the command method.
-                self._ui.printf("%RInsufficient number of arguments.%N")
-                self._ui.help_local(meth.__doc__)
-            else:         # IndexError from something called by command method.
-                self.except_hook(ex, val, tb)
-        except getopt.GetoptError as err:
-            self._ui.print("option %r: %s" % (err.opt, err.msg))
         except:
             ex, val, tb = sys.exc_info()
             self.except_hook(ex, val, tb)
         else:
             if rv is not None:
                 try:
-                    self.environ["?"] = int(rv)
+                    self._ui.environ["?"] = int(rv)
                 except (ValueError, TypeError, AttributeError):
-                    self.environ["?"] = 0
-                self.environ["_"] = rv
+                    self._ui.environ["?"] = 0
+                self._ui.environ["_"] = rv
             return rv
 
     def _expand_aliases(self, argv):
         seen = {}
         while 1:
-            alias = self._commands._aliases.get(argv[0], None)
+            alias = self.commands._aliases.get(argv[0], None)
             if alias:
                 if alias[0] in seen:
                     break  # alias loop
@@ -133,9 +143,9 @@ class CommandController:
                 break
         return argv
 
-    def get_commands(self):
+    def get_command_names(self):
         if self._command_list is None:
-            self._command_list = _get_command_list(self._commands)
+            self._command_list = cli.get_command_list(self.commands)
         return self._command_list
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

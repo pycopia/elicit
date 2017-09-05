@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Debugger that can be used instead of the pdb module. This one provides a nicer
-command interface by using the CLI module.
-
+"""Debugger that can be used instead of the pdb module.
 """
 
 import sys
@@ -29,8 +26,10 @@ from reprlib import Repr
 from . import exceptions
 from . import console
 from . import controller
+from . import parser
 from . import ui
 from . import cli
+from . import env
 from . import themes
 
 # Create a custom safe Repr instance and increase its maxstring.
@@ -41,6 +40,13 @@ _repr.maxother = 50
 _saferepr = _repr.repr
 
 DebuggerQuit = bdb.BdbQuit
+
+
+def DEBUG(*args, **kwargs):
+    """Can use this instead of 'print' when debugging. Prints to stderr.
+    """
+    kwargs["file"] = sys.stderr
+    print("DEBUG", *args, **kwargs)
 
 
 def find_function(funcname, filename):
@@ -160,8 +166,9 @@ class Debugger(bdb.Bdb):
         bdb.Bdb.reset(self)  # old style class
         self.forget()
         self._parser = None
-        theme = DebuggerTheme("%GDebug%N> ")
-        self._ui = ui.UserInterface(self._io, environment=None, theme=theme)
+        theme = DebuggerTheme(ps1="%GDebug%N:%S> ")
+        e = env.Environ()
+        self._ui = ui.UserInterface(self._io, environment=e, theme=theme)
         self._ui.register_expansion("S", self._expansions)
 
     def _expansions(self, c):
@@ -205,7 +212,7 @@ class Debugger(bdb.Bdb):
         """This method is called when there is the remote possibility
         that we ever need to stop in this function."""
         if self.stop_here(frame):
-            self._ui.printf('%g--Call--%N')
+            self._ui.printf('%g--Call--%N\n')
             self.interaction(frame, None)
 
     def user_line(self, frame):
@@ -215,7 +222,7 @@ class Debugger(bdb.Bdb):
     def user_return(self, frame, return_value):
         """This function is called when a return trap is set here."""
         frame.f_locals['__return__'] = return_value
-        self._ui.printf('%g--Return--%N')
+        self._ui.printf('%g--Return--%N\n')
         self.interaction(frame, None)
 
     def user_exception(self, frame, exc_tuple):
@@ -235,9 +242,8 @@ class Debugger(bdb.Bdb):
         self.setup(frame, traceback)
         self.print_stack_entry(self.stack[self.curindex])
         if self._parser is None:
-            cmd = DebuggerCommands(self._ui, instance=self, aliases=CLIaliases,
-                                   prompt="%GDebug%N:%S> ")
-            ctl = controller.CommandController(self._ui, cmd)
+            cmd = DebuggerCommands(self._ui, debugger=self, aliases=_DEFAULT_ALIASES)
+            ctl = controller.CommandController(cmd)
             parser = DebuggerParser(ctl)
             self._parser = parser
         self._parser.interact()
@@ -250,13 +256,13 @@ class Debugger(bdb.Bdb):
             code = compile(line + '\n', '<stdin>', 'single')
         except:
             t, v = sys.exc_info()[:2]
-            self._ui.printf('*** Could not compile: %%r%s%%N: %s' % (t, v))
+            self._ui.printf('*** Could not compile: %%r%s%%N: %s\n' % (t, v))
         else:
             try:
                 exec(code, globals, locals)
             except:
                 t, v = sys.exc_info()[:2]
-                self._ui.printf('*** %%r%s%%N: %s' % (t, v))
+                self._ui.printf('*** %%r%s%%N: %s\n' % (t, v))
 
     def go_up(self):
         if self.curindex == 0:
@@ -373,7 +379,7 @@ class Debugger(bdb.Bdb):
         return "".join(s)
 
     def print_exc(self, ex, val):
-        self._ui.printf('%R{}:%N: {}'.format(ex, val))
+        self._ui.printf('%R{}:%N: {}\n'.format(ex, val))
         while val.__cause__ is not None:
             val = val.__cause__
             self.print_exc("Because: {}".format(val.__class__.__name__), val)
@@ -403,14 +409,14 @@ class Debugger(bdb.Bdb):
             with open(filename, "rb") as fp:
                 code = compile(fp.read(), self.mainpyfile, 'exec')
         except SyntaxError as serr:
-            self._ui.printf('%RSyntaxError%N: {}'.format(serr))
+            self._ui.printf('%RSyntaxError%N: {}\n'.format(serr))
             return 2
         try:
             self.run(code)
         except SystemExit:
             es = sys.exc_info()[1]
             self._ui.printf(
-                "\n** %WThe program exited via sys.exit()%N. Exit status: {}".format(es))
+                "\n** %WThe program exited via sys.exit()%N. Exit status: {}\n".format(es))
             return es
         except:
             ex, val, t = sys.exc_info()
@@ -419,7 +425,7 @@ class Debugger(bdb.Bdb):
             return 99
 
 
-class DebuggerParser(cli.CommandParser):
+class DebuggerParser(parser.CommandParser):
     def initialize(self):
         ANY = ui.ANY
         f = ui.FSM(0)
@@ -444,92 +450,88 @@ class DebuggerParser(cli.CommandParser):
 
 class DebuggerCommands(cli.BaseCommands):
 
-    def _setup(self, obj, prompt=None):
-        self._dbg = obj  # the debugger object
-        self._obj = obj  # for base class
-        self._namespace = obj.curframe.f_locals
-        if prompt:
-            self._environ["PS1"] = str(prompt)
+    def __init__(self, ui, debugger, aliases):
+        super().__init__(ui, aliases=aliases)
+        self._obj = debugger
 
     def _reset_namespace(self):
-        self._namespace = self._dbg.curframe.f_locals
+        self._namespace = self._obj.curframe.f_locals
 
     def finalize(self):
-        self._dbg.set_quit()
+        self._obj.set_quit()
 
-    def default_command(self, argv):
-        line = " ".join(argv)
-        self._dbg.execline(line)
+    def default_command(self, arguments):
+        """If not a debugger command, evaluate it as a statement."""
+        line = " ".join(arguments["argv"])
+        self._obj.execline(line)
 
-    def execute(self, argv):
-        """execute <statement>
-    Execute <statement> in current frame context."""
-        line = " ".join(argv[1:])
-        self._dbg.execline(line)
+    def execute(self, arguments):
+        """Execute <statement> in current frame context.
 
-    def brk(self, argv):
-        """brk [-t] [breakpoint] ([file:]lineno | function) [, condition]
-    With a line number argument, set a break there in the current
-    file.  With a function name, set a break at first executable line
-    of that function.  Without argument, list all breaks.  If a second
-    argument is present, it is a string specifying an expression
-    which must evaluate to true before the breakpoint is honored.
+        Usage:
+            execute <statement>
+    """
+        line = " ".join(arguments["argv"][1:])
+        self._obj.execline(line)
 
-    The line number may be prefixed with a filename and a colon,
-    to specify a breakpoint in another file (probably one that
-    hasn't been loaded yet).  The file is searched for on sys.path;
-    the .py suffix may be omitted."""
-        temporary = False
-        opts, longopts, args = self.getopt(argv, "t")
-        for opt, arg in opts:
-            if opt == "-t":
-                temporary = True
+    def brk(self, arguments):
+        """Set a break point.
 
-        if not args:
-            if self._dbg.breaks:  # There's at least one
+        Usage:
+            brk [-t] [([<file>:]<lineno> | <function>)] [, <condition>...]
+
+        With a line number argument, set a break there in the current
+        file.  With a function name, set a break at first executable line
+        of that function.  Without argument, list all breaks.  If a second
+        argument is present, it is a string specifying an expression
+        which must evaluate to true before the breakpoint is honored.
+
+        The line number may be prefixed with a filename and a colon,
+        to specify a breakpoint in another file (probably one that
+        hasn't been loaded yet).  The file is searched for on sys.path;
+        the .py suffix may be omitted.
+        """
+        temporary = arguments["-t"]
+        if not arguments["<lineno>"]:
+            if self._obj.breaks:  # There's at least one
                 self._ui.print("Num Type         Disp Enb   Where")
                 for bp in bdb.Breakpoint.bpbynumber:
                     if bp:
                         bp.bpprint()
             return
-        # parse arguments; comma has lowest precedence
-        # and cannot occur in filename
-        arg = " ".join(args)
         filename = None
         lineno = None
-        cond = None
-        comma = arg.find(',')
-        if comma > 0:
-            # parse stuff after comma: "condition"
-            cond = arg[comma+1:].lstrip()
-            arg = arg[:comma].rstrip()
-        # parse stuff before comma: [filename:]lineno | function
-        colon = arg.rfind(':')
+        if arguments["<condition>"]:
+            cond = " ".join(arguments["<condition>"])
+        else:
+            cond = None
+        lineno = arguments["<lineno>"]
+        colon = lineno.rfind(':')
         if colon >= 0:
-            filename = arg[:colon].rstrip()
+            filename = lineno[:colon].rstrip()
             f = lookupmodule(filename)
             if not f:
                 self._ui.print('*** ', repr(filename), 'not found from sys.path')
                 return
             else:
                 filename = f
-            arg = arg[colon+1:].lstrip()
+            lineno = lineno[colon+1:].lstrip()
             try:
-                lineno = int(arg)
+                lineno = int(lineno)
             except ValueError as msg:
-                self._ui.print('*** Bad lineno:', arg)
+                self._ui.print('*** Bad lineno:', lineno)
                 return
         else:
             # no colon; can be lineno or function
             try:
-                lineno = int(arg)
+                lineno = int(lineno)
             except ValueError:
                 try:
-                    func = eval(arg,
-                                self._dbg.curframe.f_globals,
-                                self._dbg.curframe.f_locals)
+                    func = eval(lineno,
+                                self._obj.curframe.f_globals,
+                                self._obj.curframe.f_locals)
                 except:
-                    func = arg
+                    func = lineno
                 try:
                     if hasattr(func, '__func__'):
                         func = func.__func__
@@ -538,30 +540,34 @@ class DebuggerCommands(cli.BaseCommands):
                     filename = code.co_filename
                 except:
                     # last thing to try
-                    (ok, filename, ln) = self._dbg.lineinfo(arg)
+                    (ok, filename, ln) = self._obj.lineinfo(lineno)
                     if not ok:
-                        self._ui.print('*** The specified object', repr(arg))
+                        self._ui.print('*** The specified object', repr(lineno))
                         self._ui.print('is not a function or was not found along sys.path.')
                         return
                     lineno = int(ln)
         if not filename:
-            filename = self._dbg.defaultFile()
+            filename = self._obj.defaultFile()
         # Check for reasonable breakpoint
         line = checkline(filename, lineno, self._ui)
         if line:
             # now set the break point
-            err = self._dbg.set_break(filename, line, temporary, cond)
+            err = self._obj.set_break(filename, line, temporary, cond)
             if err:
-                self._ui.print('***', err)
+                self._ui.error(str(err))
             else:
-                bp = self._dbg.get_breaks(filename, line)[-1]
+                bp = self._obj.get_breaks(filename, line)[-1]
                 self._ui.print("Breakpoint %d at %s:%d" % (bp.number, bp.file, bp.line))
+        else:
+            self._ui.warning("Bad line number, or function not found.")
 
-    def enable(self, argv):
-        """enable bpnumber [bpnumber ...]
-    Enables the breakpoints given as a space separated list of
-    bp numbers."""
-        for i in argv[1:]:
+    def enable(self, arguments):
+        """Enables the breakpoints given.
+
+        Usage:
+            enable <bpnumber>...
+        """
+        for i in arguments["<bpnumber>"]:
             try:
                 i = int(i)
             except ValueError:
@@ -574,11 +580,15 @@ class DebuggerCommands(cli.BaseCommands):
             if bp:
                 bp.enable()
 
-    def disable(self, argv):
-        """disable bpnumber [bpnumber ...]
-    Disables the breakpoints given as a space separated list of
-    bp numbers."""
-        for i in argv[1:]:
+    def disable(self, arguments):
+        """Disables the breakpoints.
+
+        Disable all given break points.
+
+        Usage:
+            disable <bpnumber>...
+        """
+        for i in arguments["<bpnumber>"]:
             try:
                 i = int(i)
             except ValueError:
@@ -591,35 +601,38 @@ class DebuggerCommands(cli.BaseCommands):
             if bp:
                 bp.disable()
 
-    def condition(self, argv):
-        """condition bpnumber str_condition
-    str_condition is a string specifying an expression which
-    must evaluate to true before the breakpoint is honored.
-    If str_condition is absent, any existing condition is removed;
-    i.e., the breakpoint is made unconditional."""
-        bpnum = int(argv[1].strip())
-        try:
-            cond = argv[2]
-        except:
-            cond = None
+    def condition(self, arguments):
+        """Conditional breakpoint.
+
+        Usage:
+            condition <bpnumber> [<condition>]
+
+        The <condition> is a string specifying an expression which
+        must evaluate to true before the breakpoint is honored.
+        If <condition> is absent, any existing condition is removed;
+        i.e., the breakpoint is made unconditional.
+        """
+        bpnum = int(arguments["bpnumber"])
+        cond = arguments["<condition>"]
         bp = bdb.Breakpoint.bpbynumber[bpnum]
         if bp:
             bp.cond = cond
             if not cond:
                 self._ui.print('Breakpoint', bpnum, 'is now unconditional.')
 
-    def ignore(self, argv):
-        """ignore bpnumber count
-    Sets the ignore count for the given breakpoint number.  A breakpoint
-    becomes active when the ignore count is zero.  When non-zero, the
-    count is decremented each time the breakpoint is reached and the
-    breakpoint is not disabled and any associated condition evaluates
-    to true."""
-        bpnum = int(argv[1].strip())
-        try:
-            count = int(argv[2].strip())
-        except:
-            count = 0
+    def ignore(self, arguments):
+        """Sets the ignore count for the given breakpoint number.
+
+        A breakpoint becomes active when the ignore count is zero.  When
+        non-zero, the count is decremented each time the breakpoint is reached
+        and the breakpoint is not disabled and any associated condition
+        evaluates to true.
+
+        Usage:
+            ignore <bpnumber> [<count>]
+    """
+        bpnum = int(arguments["bpnumber"])
+        count = int(arguments["<count>"] or 0)
         bp = bdb.Breakpoint.bpbynumber[bpnum]
         if bp:
             bp.ignore = count
@@ -633,147 +646,159 @@ class DebuggerCommands(cli.BaseCommands):
             else:
                 self._ui.print('Will stop next time breakpoint', bpnum, 'is reached.')
 
-    def clear(self, argv):
-        """clear ...
-    Three possibilities, tried in this order:
-    clear -> clear all breaks, ask for confirmation
-    clear file:lineno -> clear all breaks at file:lineno
-    clear bpno bpno ... -> clear breakpoints by number
+    def clear(self, arguments):
+        """Clear breakpoints.
 
-    With a space separated list of breakpoint numbers, clear
-    those breakpoints.  Without argument, clear all breaks (but
-    first ask confirmation).  With a filename:lineno argument,
-    clear all breaks at that line in that file.
+        Three possibilities, tried in this order:
+        clear -> clear all breaks, ask for confirmation
+        clear file:lineno -> clear all breaks at file:lineno
+        clear bpno bpno ... -> clear breakpoints by number
 
-    Note that the argument is different from previous versions of
-    the debugger (in python distributions 1.5.1 and before) where
-    a linenumber was used instead of either filename:lineno or
-    breakpoint numbers."""
-        if len(argv) == 1:
-            reply = self._ui.yes_no('Clear all breaks? ')
-            if reply:
-                self._dbg.clear_all_breaks()
+        With a space separated list of breakpoint numbers, clear
+        those breakpoints.  Without argument, clear all breaks (but
+        first ask confirmation).  With a filename:lineno argument,
+        clear all breaks at that line in that file.
+
+        Usage:
+            clear
+            clear <file:lineno>
+            clear <breakpoint>...
+        """
+        if not arguments["<file:lineno>"] and not arguments["<breakpoint>"]:
+            if self._ui.yes_no('Clear all breaks? '):
+                self._obj.clear_all_breaks()
             return
-        arg = " ".join(argv[1:])
-        if ':' in arg:
-            # Make sure it works for "clear C:\foo\bar.py:12"
-            i = arg.rfind(':')
-            filename = arg[:i]
-            arg = arg[i+1:]
-            try:
-                lineno = int(arg)
-            except:
-                err = "Invalid line number (%s)" % arg
+        arg = arguments["<file:lineno>"]
+        if arg:
+            if ':' in arg:
+                # Make sure it works for "clear C:\foo\bar.py:12"
+                i = arg.rfind(':')
+                filename = arg[:i]
+                arg = arg[i+1:]
+                try:
+                    lineno = int(arg)
+                except:
+                    err = "Invalid line number (%s)" % arg
+                else:
+                    err = self._obj.clear_break(filename, lineno)
+                if err:
+                    self._ui.error('clear break: {}'.format(err))
             else:
-                err = self._dbg.clear_break(filename, lineno)
-            if err:
-                self._ui.print('***', err)
+                err = self._obj.clear_bpbynumber(i)
+                if err:
+                    self._ui.error('clear breakpoint: {}'.format(err))
             return
-        numberlist = arg.split()
-        for i in numberlist:
-            err = self._dbg.clear_bpbynumber(i)
+        for i in arguments["<breakpoint>"]:
+            err = self._obj.clear_bpbynumber(i)
             if err:
-                self._ui.print('***', err)
+                self._ui.error('clear breakpoint: {}'.format(err))
             else:
                 self._ui.print('Deleted breakpoint %s ' % (i,))
 
-    def where(self, argv):  # backtrace
-        """where
-    Print a stack trace, with the most recent frame at the bottom.
-    An arrow indicates the "current frame", which determines the
-    context of most commands.  'bt' is an alias for this command."""
-        self._dbg.print_stack_trace()
+    def where(self, arguments):  # backtrace
+        """Print a stack trace, with the most recent frame at the bottom.
+
+        An arrow indicates the "current frame", which determines the
+        context of most commands.  'bt' is an alias for this command.
+        """
+        self._obj.print_stack_trace()
 
     backtrace = where  # alias
 
-    def up(self, argv):
-        """up
-    Move the current frame one level up in the stack trace
-    (to a newer frame)."""
-        res = self._dbg.go_up()
+    def up(self, arguments):
+        """Move the current frame one level up in the stack trace
+        (to a newer frame).
+        """
+        res = self._obj.go_up()
         if res:
             self._ui.print(res)
         self._reset_namespace()
 
-    def down(self, argv):
-        """down
-    Move the current frame one level down in the stack trace
-    (to an older frame)."""
-        res = self._dbg.go_down()
+    def down(self, arguments):
+        """Move the current frame one level down in the stack trace
+        (to an older frame).
+        """
+        res = self._obj.go_down()
         if res:
             self._ui.print(res)
         self._reset_namespace()
 
-    def step(self, argv):
-        """step
-    Execute the current line, stop at the first possible occasion
-    (either in a function that is called or in the current function)."""
-        self._dbg.set_step()
+    def step(self, arguments):
+        """Execute the current line, stop at the first possible occasion
+        (either in a function that is called or in the current function).
+        """
+        self._obj.set_step()
         raise exceptions.CommandExit()
 
-    def next(self, argv):
-        """next
-    Continue execution until the next line in the current function
-    is reached or it returns."""
-        self._dbg.set_next(self._dbg.curframe)
+    def next(self, arguments):
+        """Continue execution until the next line in the current function
+        is reached or it returns.
+        """
+        self._obj.set_next(self._obj.curframe)
         raise exceptions.CommandExit()
 
-    def returns(self, argv):
-        """returns
-    Continue execution until the current function returns."""
-        self._dbg.set_return(self._dbg.curframe)
+    def returns(self, arguments):
+        """Continue execution until the current function returns."""
+        self._obj.set_return(self._obj.curframe)
         raise exceptions.CommandExit()
 
-    def cont(self, arg):
-        """cont
-    Continue execution, only stop when a breakpoint is encountered."""
-        self._dbg.set_continue()
-        if self._dbg.breaks:
+    def cont(self, arguments):
+        """Continue execution, only stop when a breakpoint is encountered."""
+        self._obj.set_continue()
+        if self._obj.breaks:
             raise exceptions.CommandExit()
         else:
-            self._dbg._parser = None
+            self._obj._parser = None
             raise exceptions.CommandQuit()
 
-    def jump(self, argv):
-        """jump lineno
-    Set the next line that will be executed."""
-        if self._dbg.curindex + 1 != len(self._dbg.stack):
+    def jump(self, arguments):
+        """Set the next line that will be executed.
+
+        Usage:
+            jump <lineno>
+        """
+        if self._obj.curindex + 1 != len(self._obj.stack):
             self._ui.print("*** You can only jump within the bottom frame")
             return
         try:
-            arg = int(argv[1])
+            lineno = int(arguments["<lineno>"])
         except ValueError:
             self._ui.print("*** The 'jump' command requires a line number.")
         else:
             try:
                 # Do the jump, fix up our copy of the stack, and display the
                 # new position
-                self._dbg.curframe.f_lineno = arg
-                self._dbg.stack[self._dbg.curindex] = self._dbg.stack[self._dbg.curindex][0], arg
-                self._dbg.print_stack_entry(self._dbg.stack[self._dbg.curindex])
+                self._obj.curframe.f_lineno = lineno
+                self._obj.stack[self._obj.curindex] = self._obj.stack[self._obj.curindex][0], lineno
+                self._obj.print_stack_entry(self._obj.stack[self._obj.curindex])
             except ValueError as e:
                 self._ui.print('*** Jump failed:', e)
             else:
                 self._reset_namespace()
 
-    def debug(self, argv):
-        """debug code
-    Enter a recursive debugger that steps through the code argument
-    (which is an arbitrary expression or statement to be executed
-    in the current environment)."""
-        self._ui.print("ENTERING RECURSIVE DEBUGGER")
-        self._dbg.debug(" ".join(argv[1:]))
-        self._ui.print("LEAVING RECURSIVE DEBUGGER")
+    def debug(self, arguments):
+        """Enter a recursive debugger.
 
-    def quit(self, argv):
+        Steps through the code argument (which is an arbitrary expression or
+        statement to be executed in the current environment).
+
+        Usage:
+            debug <statement>
+        """
+        self._ui.print("=== entering recursive debugger")
+        self._ui.environ["SHLVL"] += 1
+        self._obj.debug(" ".join(arguments["argv"][1:]))
+        self._ui.print("=== leaving recursive debugger")
+
+    def quit(self, arguments):
         """quit or exit - Quit from the debugger.
-    The program being executed is aborted."""
-        super(DebuggerCommands, self).exit(argv)
+        The program being executed is aborted.
+        """
+        super(DebuggerCommands, self).exit(arguments)
 
-    def args(self, argv):
-        """args
-    Print the arguments of the current function."""
-        f = self._dbg.curframe
+    def args(self, arguments):
+        """Print the arguments of the current function."""
+        f = self._obj.curframe
         co = f.f_code
         dict = f.f_locals
         n = co.co_argcount
@@ -789,26 +814,29 @@ class DebuggerCommands(cli.BaseCommands):
             else:
                 self._ui.print("*** undefined ***")
 
-    def retval(self, argv):
-        """retval
-    Show return value."""
-        val = self._dbg.retval()
-        if val is not None:
-            self._ui.print(val)
+    def retval(self, arguments):
+        """Show return value."""
+        val = self._obj.retval()
+        self._ui.print(_saferepr(val))
 
-    def show(self, argv):
-        """show [<name>...]
-    Shows the current frame's object and values. If parameter names are given
-    then show only those local names."""
-        f = self._dbg.curframe
-        if len(argv) > 1:
-            for name in argv[1:]:
+    def show(self, arguments):
+        """Shows the current frame's object and values.
+
+        If parameter names are given then show only those local names.
+
+        Usage:
+            show [<name>...]
+    """
+        f = self._obj.curframe
+        args = arguments["<name>"]
+        if args:
+            for name in args:
                 try:
                     self._ui.print("%25.25s = %s" % (name, _saferepr(f.f_locals[name])))
                 except KeyError:
                     self._ui.print("%r not found." % (name,))
         else:
-            self._ui.printf("%%I%s%%N (" % (f.f_code.co_name or "<lambda>",))
+            self._ui.printf("%I{}%N (\n".format(f.f_code.co_name or "<lambda>"))
             co = f.f_code
             n = co.co_argcount
             if co.co_flags & 4:
@@ -831,7 +859,7 @@ class DebuggerCommands(cli.BaseCommands):
             # compiled. These must have been "stuffed" by other code.
             extra = []
             varnames = list(co.co_varnames)  # to get list methods
-            for name, val in list(local.items()):
+            for name, val in local.items():
                 try:
                     varnames.index(name)
                 except ValueError:
@@ -840,54 +868,65 @@ class DebuggerCommands(cli.BaseCommands):
                 self._ui.print("  Extra locals:")
                 self._ui.print("\n".join(extra))
 
-    def print(self, argv):
-        """Print <expression>
-    Print the value of the expression."""
+    def print(self, arguments):
+        """Print the value of the expression in the current frame.
+
+        Usage:
+            print <expression>
+        """
+        expression = " ".join(arguments["argv"][1:])
         try:
-            self._ui.print(repr(self._dbg.getval(" ".join(argv[1:]))))
+            self._ui.print(repr(self._obj.getval(expression)))
         except:
             ex, val = sys.exc_info()[:2]
             self._ui.print("***", ex, val)
 
-    def list(self, argv):
-        """list [first [,last]]
-    List source code for the current file.
-    Without arguments, list 20 lines around the current line
-    or continue the previous listing.
-    With one argument, list 20 lines centered at that line.
-    With two arguments, list the given range;
-    if the second argument is less than the first, it is a count."""
+    def list(self, arguments):
+        """List source code for the current file.
 
-        last = None
-        if len(argv) >= 2:
-            first = max(1, int(argv[1]) - 10)
-            if len(argv) >= 3:
-                last = int(argv[2])
+        Without arguments, list 20 lines around the current line or continue the
+        previous listing.  With one argument, list 20 lines centered at that
+        line.  With two arguments, list the given range; if the second argument
+        is less than the first, it is a count.
+
+        Usage:
+            list [<first> [<last>]]
+        """
+
+        last = arguments["<last>"]
+        first = arguments["<first>"]
+        if first is not None:
+            first = max(1, int(first) - 10)
+            if last is not None:
+                last = int(last)
                 if last < first:
                     # Assume it's a count
                     last = first + last
-        elif self._dbg.lineno is None:
-            first = max(1, self._dbg.curframe.f_lineno - 10)
+        elif self._obj.lineno is None:
+            first = max(1, self._obj.curframe.f_lineno - 10)
         else:
-            first = self._dbg.lineno + 1
+            first = self._obj.lineno + 1
         if last is None:
             last = first + 20
-        filename = self._dbg.curframe.f_code.co_filename
+        filename = self._obj.curframe.f_code.co_filename
         self._print_source(filename, first, last)
 
-    def edit(self, argv):
-        """edit
-    Open your editor at the current location."""
-        line = self._dbg.curframe.f_lineno
-        filename = self._dbg.curframe.f_code.co_filename
+    def edit(self, arguments):
+        """Open your editor at the current location."""
+        line = self._obj.curframe.f_lineno
+        filename = self._obj.curframe.f_code.co_filename
         run_editor(filename, line)
 
-    def whatis(self, argv):
-        """whatis arg
-    Prints the type of the argument."""
-        arg = " ".join(argv[1:])
+    def whatis(self, arguments):
+        """Prints the type of the argument.
+
+        Usage:
+
+            whatis <name>
+        """
+        arg = " ".join(arguments["argv"][1:])
         try:
-            value = eval(arg, self._dbg.curframe.f_globals, self._dbg.curframe.f_locals)
+            value = eval(arg, self._obj.curframe.f_globals, self._obj.curframe.f_locals)
         except:
             t, v = sys.exc_info()[:2]
             if isinstance(t, str):
@@ -899,7 +938,7 @@ class DebuggerCommands(cli.BaseCommands):
         # Is it a function?
         try:
             code = value.__code__
-        except:
+        except AttributeError:
             pass
         else:
             self._ui.print('Function', code.co_name)
@@ -907,7 +946,7 @@ class DebuggerCommands(cli.BaseCommands):
         # Is it an instance method?
         try:
             code = value.__func__.__code__
-        except:
+        except AttributeError:
             pass
         else:
             self._ui.print('Method', code.co_name)
@@ -915,15 +954,19 @@ class DebuggerCommands(cli.BaseCommands):
         # None of the above...
         self._ui.print(type(value))
 
-    def search(self, argv):
-        """search <pattern>
-    Search the source file for the regular expression pattern."""
-        patt = re.compile(" ".join(argv[1:]))
-        filename = self._dbg.curframe.f_code.co_filename
-        if self._dbg.lineno is None:
+    def search(self, arguments):
+        """Search the source file for the regular expression pattern.
+
+        Usage:
+
+            search <pattern>
+    """
+        patt = re.compile(" ".join(arguments["argv"][1:]))
+        filename = self._obj.curframe.f_code.co_filename
+        if self._obj.lineno is None:
             start = 0
         else:
-            start = max(0,  self._dbg.lineno - 9)
+            start = max(0,  self._obj.lineno - 9)
         lines = linecache.getlines(filename)[start:]
         for lineno, line in enumerate(lines):
             mo = patt.search(line)
@@ -934,29 +977,29 @@ class DebuggerCommands(cli.BaseCommands):
             self._ui.print("Pattern not found.")
 
     def _print_source(self, filename, first, last):
-        breaklist = self._dbg.get_file_breaks(filename)
+        breaklist = self._obj.get_file_breaks(filename)
         try:
             for lineno in range(first, last+1):
                 line = linecache.getline(filename, lineno)
                 if not line:
-                    self._ui.printf('%Y[EOF]%N')
+                    self._ui.printf('%Y[EOF]%N\n')
                     break
                 else:
                     s = []
                     s.append("%5.5s%s" % (lineno,
                                           self._ui.prompt_format(" %RB%N") if
                                           (lineno in breaklist) else "  "))
-                    if lineno == self._dbg.curframe.f_lineno:
+                    if lineno == self._obj.curframe.f_lineno:
                         s.append(self._ui.prompt_format("%I->%N "))
                     else:
                         s.append("   ")
                     self._ui.print("".join(s), line.rstrip())
-                    self._dbg.lineno = lineno
+                    self._obj.lineno = lineno
         except KeyboardInterrupt:
             pass
 
 
-CLIaliases = {
+_DEFAULT_ALIASES = {
     "p": ["print"],
     "l": ["list"],
     "n": ["next"],
@@ -1039,6 +1082,5 @@ def debug_script(filename):
 if __name__ == "__main__":
     del sys.argv[0]
     sys.exit(debug_script(sys.argv[0]))
-
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

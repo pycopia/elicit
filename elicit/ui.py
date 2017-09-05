@@ -31,14 +31,13 @@ PROMPT_START_IGNORE = '\001'
 PROMPT_END_IGNORE = '\002'
 
 
-
 class UserInterface:
     """An ANSI terminal user interface for CLIs.  """
     def __init__(self, io, environment, theme):
         self._io = io
-        self._env = environment
-        assert hasattr(self._env, "get"), "Need Environ object with 'get' method"
-        self._env["_"] = None
+        self.environ = environment
+        assert hasattr(self.environ, "get"), "Need Environ object with 'get' method"
+        self.environ["_"] = None
         self._cache = {}
         self.set_theme(theme)
         self._initfsm()
@@ -52,13 +51,13 @@ class UserInterface:
 
     def set_theme(self, theme):
         self._theme = theme
-        self._env.setdefault("PS1", self._theme.ps1)
-        self._env.setdefault("PS2", self._theme.ps2)
-        self._env.setdefault("PS3", self._theme.ps3)
-        self._env.setdefault("PS4", self._theme.ps4)
+        self.environ.setdefault("PS1", self._theme.ps1)
+        self.environ.setdefault("PS2", self._theme.ps2)
+        self.environ.setdefault("PS3", self._theme.ps3)
+        self.environ.setdefault("PS4", self._theme.ps4)
 
     def clone(self, theme=None):
-        return self.__class__(self._io, self._env.copy(), theme or self._theme)
+        return self.__class__(self._io, self.environ.copy(), theme or self._theme)
 
     def print(self, *objs):
         try:
@@ -94,23 +93,23 @@ class UserInterface:
 
     def write(self, text):
         try:
-            self._io.write(text)
+            return self._io.write(text)
         except exceptions.PageQuit:
-            return
+            return 0
 
     def printf(self, text):
         "Print text run through the expansion formatter."
-        self.print(self.prompt_format(text))
+        self.write(self.prompt_format(text))
 
     def error(self, text):
-        self.printf("%r{}%N".format(text))
+        self.printf("%r{}%N\n".format(text))
 
     def warning(self, text):
-        self.printf("%Y{}%N".format(text))
+        self.printf("%Y{}%N\n".format(text))
 
     # user input
     def _get_prompt(self, name, prompt=None):
-        return self._input_prompt_format(prompt or self._env[name])
+        return self._input_prompt_format(prompt or self.environ[name])
 
     def _input_prompt_format(self, ps):
         self._fsm.process_string(ps)
@@ -338,7 +337,7 @@ class UserInterface:
         fsm.varname += c
 
     def _endvar(self, c, fsm):
-        fsm.arg += str(self._env.get(fsm.varname, fsm.varname))
+        fsm.arg += str(self.environ.get(fsm.varname, fsm.varname))
 
     def _startbg(self, c, fsm):
         fsm.bgcol = ""
@@ -387,7 +386,7 @@ class UserInterface:
         return un
 
     def _shlvl(self, c):
-        return str(self._env.get("SHLVL", ""))
+        return str(self.environ.get("SHLVL", ""))
 
     def _hostname(self, c):
         hn = os.uname()[1]

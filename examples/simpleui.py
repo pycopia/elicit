@@ -14,32 +14,30 @@
 # limitations under the License.
 
 """
-Common exceptions.
+Use the simple UI elements from a script.
+
 """
 
+import sys
 
-class CLIException(Exception):
-    def __init__(self, value=None):
-        self.value = value
-
-
-class CommandQuit(CLIException):
-    """An exception that is used to signal quiting from a command object.
-    """
+from elicit import simpleui
 
 
-class CommandExit(CLIException):
-    """An exception that is used to signal exiting from the command object. The
-    command is not popped.
-    """
+def choose1():
+    choice = simpleui.choose(["one", "two", "three"])
+    print("choice 1 was {}".format(choice))
+
+def choose2():
+    print("choice 2:", simpleui.choose(["one", "two", "three", "four"]))
+
+def choose1withprompt():
+    print("choice 3:", simpleui.choose(["one", "two", "three", "four"], prompt="Choose ONE "))
+
+def main(argv):
+    choose1()
+    choose2()
+    choose1withprompt()
 
 
-class NewCommand(CLIException):
-    """Used to signal the parser to push a new command object.
-    Raise this with an instance of BaseCommands as a value.
-    """
-
-class PageQuit(Exception):
-    """Quit early from paged IO.
-    """
-
+if __name__ == "__main__":
+    main(sys.argv)

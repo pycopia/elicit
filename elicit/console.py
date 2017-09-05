@@ -42,13 +42,13 @@ class ConsoleIO:
             self.set_size()
             self._oldhandler = signal.getsignal(signal.SIGWINCH)
             signal.signal(signal.SIGWINCH, self._winch_handler)
-            self.read = self.paged_read
             self.write = self.paged_write
             self.writelines = self.paged_writelines
         else:
-            self.read = self.stdin.read
+            self.columns, self.rows = 80, 24
             self.write = self.stdout.write
             self.writelines = self.stdout.writelines
+        self.read = self.stdin.read
         self.readline = self.stdin.readline
         self.readlines = self.stdin.readlines
         self.flush = self.stdout.flush
@@ -59,13 +59,13 @@ class ConsoleIO:
     def set_pagerprompt(self, pagerprompt):
         self.pagerprompt = pagerprompt or "-- more (press any key to continue) --"
         lpp = len(self.pagerprompt)
-        #self.prompterase = "\b"*lpp+" "*lpp+"\b"*lpp
         self.prompterase = "\r" + " "*lpp + "\r"
 
     def _winch_handler(self, sig, st):
         self.set_size()
 
     def input(self, prompt="> "):
+        self._writtenlines = 1  # reset paging when input requested
         return input(prompt)
 
     def print(self, *args, **kwargs):
@@ -92,11 +92,8 @@ class ConsoleIO:
         self.stderr.write(text.encode("latin1") + b"\n")  # 1:1 bytes
         self.stderr.flush()
 
-    def paged_read(self, amt=-1):
-        self._writtenlines = 1
-        return self.stdin.read(amt)
-
     def paged_write(self, data):
+        written = 0
         ld = len(data)
         rows = self.rows - 1
         needed = rows - self._writtenlines
@@ -104,7 +101,7 @@ class ConsoleIO:
         while i < ld:
             b = i
             i, lines = self._get_index(data, needed, i)
-            self.stdout.write(data[b:i])
+            written += self.stdout.write(data[b:i])
             self._writtenlines += lines
             if self._writtenlines >= rows:
                 c = self._pause()
@@ -114,6 +111,7 @@ class ConsoleIO:
                     rows = needed = 1
                 else:
                     rows = needed = self.rows-1
+        return written
 
     def paged_writelines(self, lines):
         for line in lines:
@@ -168,5 +166,8 @@ if __name__ == "__main__":
     lines.append("\n")
     text = "\n".join(lines)
     io.write(text)
+    io.write("------\n")
+    for i in range(200):
+        io.write("{}. Now is the time to write lines...\n".format(i))
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

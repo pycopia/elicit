@@ -1,6 +1,3 @@
-#!/usr/bin/env python3.5
-# vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
-
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,13 +10,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Command parser module.
+"""Command parser module. Default is a simple, POSIX-like command parsing.
 """
 
+import sys
 import os
 import readline
 
+from . import exceptions
+from . import controller
 from .fsm import FSM, ANY
 
 
@@ -53,7 +52,7 @@ class CommandParser:
             else:  # complete based on scope keyed on previous word
                 word = curr[:b].split()[-1]
                 complist = self._controller.get_completion_scope(word)
-            self._complist = filter(lambda s: s.startswith(text), complist)
+            self._complist = [s for s in complist if s.startswith(text)]
         try:
             return self._complist[state]
         except IndexError:
@@ -70,47 +69,48 @@ class CommandParser:
                 pass
 
     def reset(self, newcontroller=None):
-        self._cmds = []
+        self._controllers = []
         self._controller = None
         self.arg_list = []
         self._buf = ""
         if newcontroller:
-            self.push_command(newcontroller)
+            self.push_controller(newcontroller)
 
-    def push_command(self, newcontroller):
+    def push_controller(self, newcontroller):
         lvl = int(newcontroller.environ.setdefault("SHLVL", 0))
         newcontroller.environ["SHLVL"] = lvl+1
-        self._cmds.append(newcontroller)
+        self._controllers.append(newcontroller)
         self._controller = newcontroller  # current command holder
-        cmdlist = newcontroller.get_commands()
+        cmdlist = newcontroller.get_command_names()
         newcontroller.add_completion_scope("commands", cmdlist)
         newcontroller.add_completion_scope("help", cmdlist)
 
-    def pop_command(self, returnval=None):
-        self._cmds.pop()
-        if self._cmds:
-            self._controller = self._cmds[-1]
+    def pop_controller(self, returnval=None):
+        cont = self._controllers.pop()
+        cont.finalize()
+        if self._controllers:
+            self._controller = self._controllers[-1]
             if returnval is not None:
-                self._controller.handle_subcommand(returnval)
+                self._controller.handle_subcommand_exit(returnval)
         else:
-            raise CommandQuit("last command object quit.")
+            raise exceptions.CommandQuit("last command object quit.")
 
     def parse(self, url):
         import urllib
         fo = urllib.urlopen(url)
-        self.parseFile(fo)
-        fo.close()
+        try:
+            self.parse_file(fo)
+        finally:
+            fo.close()
 
-    def parseFile(self, fo):
+    def parse_file(self, fo):
         data = fo.read(4096)
         while data:
             self.feed(data)
             data = fo.read(4096)
 
-    def interact(self, cmd=None):
+    def interact(self):
         _reset_readline()
-        if cmd and isinstance(cmd, BaseCommands):
-            self.push_command(cmd)
         oc = readline.get_completer()
         readline.set_completer(self._rl_completer)
         try:
@@ -124,9 +124,9 @@ class CommandParser:
                         while self.feed(line+"\n"):
                             line = ui.more_user_input()
                     except EOFError:
-                        self._controller._ui.print()
-                        self.pop_command()
-            except (CommandQuit, CommandExit):  # last command does this
+                        self._controller._ui.write("\n")
+                        self.pop_controller()
+            except (exceptions.CommandQuit, exceptions.CommandExit):
                 pass
         finally:
             readline.set_completer(oc)
@@ -146,12 +146,13 @@ class CommandParser:
                 while self._fsm.stack:
                     self._fsm.process(self._fsm.pop())
             except EOFError:
-                self.pop_command()
-            except CommandQuit:
+                self.pop_controller()
+            except exceptions.CommandQuit:
                 val = sys.exc_info()[1]
-                self.pop_command(val.value)
-            except NewCommand as cmdex:
-                self.push_command(cmdex.value)
+                self.pop_controller(val.value)
+            except exceptions.NewCommand as cmdex:
+
+                self.push_controller(controller.CommandController(cmdex.value))
         if self._fsm.current_state:  # non-zero, stuff left
             self._buf = text[i:]
         return self._fsm.current_state
@@ -252,7 +253,10 @@ class CommandParser:
 
 
 def _reset_readline():
-    readline.parse_and_bind("tab: complete")
+    if sys.platform == "darwin":
+        readline.parse_and_bind("^I rl_complete")
+    else:
+        readline.parse_and_bind("tab: complete")
     readline.parse_and_bind("set horizontal-scroll-mode on")
     readline.parse_and_bind("set page-completions on")
     readline.set_completer_delims(" ")

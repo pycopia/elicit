@@ -90,17 +90,4 @@ class Environ(dict):
     def copy(self):
         return Environ(self)
 
-if __name__ == "__main__":
-    d = Environ()
-    #d.inherit()
-    d.export("HOME=/home/user")
-    d.export("PKGHOME=/opt/pkg")
-    d.export("PATH=$HOME/bin")
-    d.export("PATH=$PATH:${PKGHOME}/bin")
-    print (d)
-    print ("-----")
-    d["?"] = 0
-    print (d.expand("Here is the PATH: $PATH"))
-    print (d.expand("$?"))
-
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

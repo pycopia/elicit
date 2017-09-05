@@ -1,17 +1,45 @@
-Elicit
-======
+# Elicit
 
-Library for writing simple console (CLI) user interfaces. Depends only on Python
-standard library.
+Library for writing console (command oriented) user interfaces. It depends only
+on Python the standard library.
 
+The package makes it easy and quick to create an interactive command oriented
+tool. The style is similar to embedded systems, such as routers, and POSIX
+shells. This is not an alternate Python REPL, such as IPython or bpython. You
+can use it to implement a custom command interface for your application that
+gets customizable command parsing, custom prompts, help system, and output
+paging.
 
-Some features:
+The *docopt* module is built-in, so no additional packages need to be installed.
 
-* Implicit paged output
+There are also some simple user-input helpers for selecting from lists.
+
+Includes an enhanced debugger that uses the CLI toolkit for a better debugging
+experience.
+
+Some notable features:
+
+* Implicit paged output (like _more_).
 * Concise prompt string specification, similar to a shell (percent [%] expansions).
-* Colored formatting and promptes.
+* Colored output formatting and input prompts.
 * Support 256 colors.
 
 
-Includes an enhanced Python debugger that uses the UI.
+## Command Lines
+
+Just override the `elicit.ui.BaseCommands` class. Any methods defined with doc
+strings become a command that can be called. The command gets an _arguments_
+parameter that is a docopt-style pre-parsed dictionary of arguments parsed
+according to the *Usage:* line in the doc string.
+
+## Presentations
+
+The `elicit.present` subpackage has some functionality useful for interactive
+presentatations using the Python REPL.
+
+Thanks to David Beazley for the inspiration.
+
+## Debugger
+
+An enhanced debugger that uses this CLI toolkit is also provided.
 

@@ -17,7 +17,9 @@ Functions for building simple user interfaces that print stuff and get user
 input from a shell.
 """
 
-import sys, os
+import sys
+import os
+from itertools import zip_longest
 from ast import literal_eval
 
 
@@ -303,13 +305,16 @@ def edit_text(text, prompt="Edit text"):
 
 
 def print_menu_list(clist, lines=LINES, columns=COLUMNS):
-    """Print a list with leading numeric menu choices. Use two columns if necessary."""
+    """Print a list with leading numeric menu choices.
+
+    Use two columns if wide terminal.
+    """
     fmt = "{{:3d}}: {{:{cols}.{cols}}}".format(cols=columns-6)
     if columns > 80:
         fmt2 = "{{:3d}}: {{:{cols}.{cols}}} | {{:3d}}: {{:{cols}.{cols}}}".format(cols=(columns-14)//2)
-        h = (len(clist)+1)//2
+        h = (len(clist) + 1) // 2
         i1, i2 = 1, h+1
-        for c1, c2 in zip(clist[:h], clist[h:]):
+        for c1, c2 in zip_longest(clist[:h], clist[h:]):
             if c2:
                 print(fmt2.format(i1, str(c1)[-(columns//2)+7:], i2, str(c2)[-(columns//2)+7:]))
             else:
@@ -318,7 +323,7 @@ def print_menu_list(clist, lines=LINES, columns=COLUMNS):
             i2 += 1
     else:
         for i, c1 in enumerate(clist):
-            print (fmt.format(i+1, str(c1)[-columns+7:]))
+            print(fmt.format(i+1, str(c1)[-columns+7:]))
 
 
 def print_menu_map(mapping, lines=LINES, columns=COLUMNS):
@@ -329,7 +334,7 @@ def print_menu_map(mapping, lines=LINES, columns=COLUMNS):
     if columns > 80:
         fmt2 = "{{!s:>4s}}: {{:{cols}.{cols}}} | {{!s:>4s}}: {{:{cols}.{cols}}}".format(cols=(columns-16)//2)
         h = (len(mapping)+1)//2
-        for k1, k2 in zip(keys[:h], keys[h:]):
+        for k1, k2 in zip_longest(keys[:h], keys[h:]):
             if k2 is not None:
                 print (fmt2.format(k1, mapping[k1], k2, mapping[k2]))
             else:
