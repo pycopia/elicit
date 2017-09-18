@@ -17,6 +17,9 @@
 Prompt and styled output themes.
 """
 
+from . import colors
+
+
 class Theme:
     NORMAL = RESET = ""
     BOLD = BRIGHT = ""
@@ -72,8 +75,8 @@ class BasicTheme(Theme):
     @classmethod
     def _setcolors(cls):
         "Base class for themes. Defines interface."
-        cls.NORMAL = cls.RESET = "\x1b[0m"
-        cls.BOLD = cls.BRIGHT = "\x1b[1m"
+        cls.NORMAL = cls.RESET = colors.RESET
+        cls.BOLD = cls.BRIGHT = colors.BRIGHT
         cls.BLACK = ""
         cls.RED = ""
         cls.GREEN = ""
@@ -91,8 +94,8 @@ class BasicTheme(Theme):
         cls.BRIGHTMAGENTA = ""
         cls.BRIGHTCYAN = ""
         cls.BRIGHTWHITE = ""
-        cls.UNDERSCORE = "\x1b[4m"
-        cls.BLINK = "\x1b[5m"
+        cls.UNDERSCORE = colors.UNDERSCORE
+        cls.BLINK = colors.BLINK
         cls.help_text = cls.WHITE
 
 
@@ -104,29 +107,28 @@ class ANSITheme(BasicTheme):
     @classmethod
     def _setcolors(cls):
         # ANSI escapes for color terminals
-        cls.NORMAL = cls.RESET = "\x1b[0m"
-        cls.BOLD = cls.BRIGHT = "\x1b[01m"
-        cls.BLACK = "\x1b[30m"
-        cls.RED = "\x1b[31m"
-        cls.GREEN = "\x1b[32m"
-        cls.YELLOW = "\x1b[33m"
-        cls.BLUE = "\x1b[34m"
-        cls.MAGENTA = "\x1b[35m"
-        cls.CYAN = "\x1b[36m"
-        cls.WHITE = "\x1b[37m"
-        cls.GREY = "\x1b[30;01m"
-        cls.BRIGHTRED = "\x1b[31;01m"
-        cls.BRIGHTGREEN = "\x1b[32;01m"
-        cls.BRIGHTYELLOW = "\x1b[33;01m"
-        cls.BRIGHTBLUE = "\x1b[34;01m"
-        cls.BRIGHTMAGENTA = "\x1b[35;01m"
-        cls.BRIGHTCYAN = "\x1b[36;01m"
-        cls.BRIGHTWHITE = "\x1b[37;01m"
-        cls.DEFAULT = "\x1b[39;49m"
-        cls.UNDERSCORE = "\x1b[4m"
-        cls.BLINK = "\x1b[5m"
+        cls.NORMAL = cls.RESET = colors.RESET
+        cls.BOLD = cls.BRIGHT = colors.BRIGHT
+        cls.BLACK = colors.BLACK
+        cls.RED = colors.RED
+        cls.GREEN = colors.GREEN
+        cls.YELLOW = colors.YELLOW
+        cls.BLUE = colors.BLUE
+        cls.MAGENTA = colors.MAGENTA
+        cls.CYAN = colors.CYAN
+        cls.WHITE = colors.GREY
+        cls.GREY = colors.GREY
+        cls.BRIGHTRED = colors.LT_RED
+        cls.BRIGHTGREEN = colors.LT_GREEN
+        cls.BRIGHTYELLOW = colors.LT_YELLOW
+        cls.BRIGHTBLUE = colors.LT_BLUE
+        cls.BRIGHTMAGENTA = colors.LT_MAGENTA
+        cls.BRIGHTCYAN = colors.LT_CYAN
+        cls.BRIGHTWHITE = colors.WHITE
+        cls.DEFAULT = colors.DEFAULT
+        cls.UNDERSCORE = colors.UNDERSCORE
+        cls.BLINK = colors.BLINK
         cls.help_text = cls.BRIGHTWHITE
 
 
 DefaultTheme = ANSITheme
-
