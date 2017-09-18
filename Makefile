@@ -50,7 +50,7 @@ sdist: requirements
 
 publish:
 	$(PYTHON) setup.py sdist upload
-	$(PYTHON) setup.py bdist upload
+	$(PYTHON) setup.py bdist_wheel upload
 
 docs:
 	make -C docs html
