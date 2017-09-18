@@ -23,6 +23,7 @@ UNDERLINE_OFF = "\x1b[24m"
 INVERSE_ON = "\x1b[7m"
 INVERSE_OFF = "\x1b[27m"
 
+BLACK = "\x1b[30m"
 RED = "\x1b[31m"
 GREEN = "\x1b[32m"
 YELLOW = "\x1b[33m"

@@ -20,7 +20,7 @@ Controller component module.
 import sys
 
 from . import env
-from . import cli
+from . import commands
 from . import exceptions
 from . import docopt
 
@@ -145,7 +145,7 @@ class CommandController:
 
     def get_command_names(self):
         if self._command_list is None:
-            self._command_list = cli.get_command_list(self.commands)
+            self._command_list = commands.get_command_list(self.commands)
         return self._command_list
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

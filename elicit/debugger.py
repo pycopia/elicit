@@ -28,7 +28,7 @@ from . import console
 from . import controller
 from . import parser
 from . import ui
-from . import cli
+from . import commands
 from . import env
 from . import themes
 
@@ -448,7 +448,7 @@ class DebuggerParser(parser.CommandParser):
         self._fsm = f
 
 
-class DebuggerCommands(cli.BaseCommands):
+class DebuggerCommands(commands.BaseCommands):
 
     def __init__(self, ui, debugger, aliases):
         super().__init__(ui, aliases=aliases)

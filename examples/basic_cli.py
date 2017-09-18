@@ -18,7 +18,7 @@ Basic *elicit* CLI example.
 
 import sys
 
-from elicit import cli
+from elicit import commands
 from elicit import console
 from elicit import controller
 from elicit import env
@@ -27,7 +27,7 @@ from elicit import themes
 from elicit import ui
 
 
-class BasicCommands(cli.BaseCommands):
+class BasicCommands(commands.BaseCommands):
     pass
 
 
