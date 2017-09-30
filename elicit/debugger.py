@@ -1048,7 +1048,10 @@ def post_mortem(t, exc=None, val=None, io=None):
     else:
         ex, val, _ = sys.exc_info()
         del _
-        p.print_exc(ex.__name__, val)
+        if ex is None:
+            DEBUG("No active exception!")
+        else:
+            p.print_exc(ex.__name__, val)
     p.interaction(t.tb_frame, t)
 
 
