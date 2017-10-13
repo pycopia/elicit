@@ -247,12 +247,12 @@ class ObjectCommands(BaseCommands):
     """
     def __init__(self, ui, instance, aliases=None, prompt="> "):
         super().__init__(ui, aliases=aliases, prompt=prompt)
-        self.setup(instance)
+        self.setup(instance, prompt=prompt)
 
     def setup(self, newinstance, prompt=None):
         if prompt is None:
             prompt = "%Y{}%N> ".format(newinstance.__class__.__name__)
-        self._environ.setdefault("PS1", prompt)
+        self._environ["PS1"] = prompt
         self._obj = newinstance
 
     def clone(self, cliclass=None, theme=None):
