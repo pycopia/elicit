@@ -44,6 +44,14 @@ class UserInterface:
         self._printer = PrettyPrinter(indent=1, width=self._io.columns,
                                       depth=None, stream=self._io, compact=False)
 
+    @property
+    def columns(self):
+        return self._io.columns
+
+    @property
+    def rows(self):
+        return self._io.rows
+
     def close(self):
         if self._io is not None:
             self._io.close()
@@ -92,10 +100,7 @@ class UserInterface:
                 pass
 
     def write(self, text):
-        try:
-            return self._io.write(text)
-        except exceptions.PageQuit:
-            return 0
+        return self._io.write(text)
 
     def printf(self, text):
         "Print text run through the expansion formatter."

@@ -95,7 +95,7 @@ class ConsoleIO:
     def paged_write(self, data):
         written = 0
         ld = len(data)
-        rows = self.rows - 1
+        rows = self.rows - 2
         needed = rows - self._writtenlines
         i = 0
         while i < ld:
@@ -106,9 +106,13 @@ class ConsoleIO:
             if self._writtenlines >= rows:
                 c = self._pause()
                 if c in "qQ":
-                    raise exceptions.PageQuit()
+                    raise exceptions.PageQuit("User quit output")
                 elif c == "\r":
                     rows = needed = 1
+                elif c == chr(3):
+                    raise KeyboardInterrupt("User exit")
+                elif c == chr(4):
+                    raise EOFError("User end input")
                 else:
                     rows = needed = self.rows-1
         return written
@@ -127,7 +131,7 @@ class ConsoleIO:
             n = data.find("\n", i)
             n = ((n < 0 and ld) or n) + 1
             l += 1 + ((n-i) // cols)
-            if l == needed or n >= ld:
+            if l >= needed or n >= ld:
                 return n, l
             i = n
 
@@ -135,6 +139,7 @@ class ConsoleIO:
         c = ""
         self._writtenlines = 0
         savestate = tty.tcgetattr(self.stdin)
+        self.stdout.write("\033[s\n")  # save cursor and start new line
         self.stdout.write(self.pagerprompt)
         self.stdout.flush()
         try:
@@ -148,6 +153,7 @@ class ConsoleIO:
         finally:
             tty.tcsetattr(self.stdin, tty.TCSAFLUSH, savestate)
         self.stdout.write(self.prompterase)
+        self.stdout.write("\033[u\033[1A")  # resture cursor and go up 1 line
         return c
 
 
