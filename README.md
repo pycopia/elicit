@@ -1,7 +1,7 @@
 # Elicit
 
 Library for writing console (command oriented) user interfaces. It depends only
-on Python the standard library.
+on the Python standard library.
 
 The package makes it easy and quick to create an interactive command oriented
 tool. The style is similar to embedded systems, such as routers, and POSIX
@@ -10,7 +10,8 @@ can use it to implement a custom command interface for your application that
 gets customizable command parsing, custom prompts, help system, and output
 paging.
 
-The *docopt* module is built-in, so no additional packages need to be installed.
+The [docopt](http://docopt.org/) module is built-in, so no additional packages
+need to be installed.
 
 There are also some simple user-input helpers for selecting from lists.
 
@@ -31,6 +32,24 @@ Just override the `elicit.ui.BaseCommands` class. Any methods defined with doc
 strings become a command that can be called. The command gets an _arguments_
 parameter that is a docopt-style pre-parsed dictionary of arguments parsed
 according to the *Usage:* line in the doc string.
+
+For example:
+
+```py
+from elicit import commands
+
+class BasicCommands(commands.BaseCommands):
+
+    def mycommand(self, arguments):
+        """Perform some function.
+
+        Usage:
+            mycommand [-o]
+        """
+        self._ui.print("got arguments:", arguments)
+```
+
+This defines a new command, _mycommand_, with a option *-o*.
 
 ## Presentations
 

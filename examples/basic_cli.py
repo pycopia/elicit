@@ -28,7 +28,14 @@ from elicit import ui
 
 
 class BasicCommands(commands.BaseCommands):
-    pass
+
+    def mycommand(self, arguments):
+        """Perform some function.
+
+        Usage:
+            mycommand [-o]
+        """
+        self._ui.print("got arguments:", arguments)
 
 
 def basic_cli():
