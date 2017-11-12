@@ -17,6 +17,8 @@
 Controller component module.
 """
 
+__all__ = ['CommandController']
+
 import sys
 
 from . import env

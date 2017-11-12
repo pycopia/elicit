@@ -16,6 +16,8 @@
 Input/Output objects.
 """
 
+__all__ = ['ConsoleIO']
+
 import sys
 import os
 import signal

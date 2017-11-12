@@ -16,6 +16,8 @@
 User Interface base classes and themes.
 """
 
+__all__ = ['UserInterface', 'FormatWrapper']
+
 import sys
 import os
 import time
@@ -101,6 +103,9 @@ class UserInterface:
 
     def write(self, text):
         return self._io.write(text)
+
+    def writeerror(self, text):
+        return self._io.error(text)
 
     def printf(self, text):
         "Print text run through the expansion formatter."

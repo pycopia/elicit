@@ -13,6 +13,8 @@
 """Command parser module. Default is a simple, POSIX-like command parsing.
 """
 
+__all__ = ['CommandParser']
+
 import sys
 import os
 import readline

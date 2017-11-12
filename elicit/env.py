@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""An dictionary that supports environment-style operations.
+"""
+
+__all__ = ['Environ']
+
 import os
 
 import re
