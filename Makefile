@@ -1,13 +1,25 @@
 # Makefile to simplify some common operations.
 
-PYVER := 3.5
-PYSUFFIX := m
-PYTHON := $(shell python$(PYVER)$(PYSUFFIX)-config --prefix)/bin/python$(PYVER)
+# Find our exact Python 3 version.
+PYVER := $(shell python3 -c 'import sys;print("{}.{}".format(sys.version_info[0], sys.version_info[1]))')
+ABIFLAGS := $(shell python3-config --abiflags)
+SUFFIX := $(shell python3-config --extension-suffix)
 
-.PHONY: build install clean distclean develop test sdist requirements docs
+PYTHONBIN ?= $(shell python3-config --prefix)/bin/python$(PYVER)$(ABIFLAGS)
+
+# Darwin using homebrew does not need sudo, but most other platforms do.
+OSNAME = $(shell uname)
+ifeq ($(OSNAME), Darwin)
+	SUDO = 
+else
+	SUDO = sudo
+endif
+
+.PHONY: info build install clean distclean develop test sdist requirements docs
 
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
+	@echo "  info          Show info about the Python being used."
 	@echo "  build         to just build the packages."
 	@echo "  install       to install from this workspace."
 	@echo "  develop       to set up for local development."
@@ -18,27 +30,33 @@ help:
 	@echo "  publish       to push to PyPI."
 	@echo "  docs          to build the documention."
 
+info:
+	@echo Found Python version: $(PYVER)$(ABIFLAGS)
+	@echo Specific Python used: $(PYTHONBIN)
+	@echo Python exension suffix: $(SUFFIX)
+	@echo sudo: $(SUDO)
+
 build:
-	$(PYTHON) setup.py build
+	$(PYTHONBIN) setup.py build
 
 install: build
-	$(PYTHON) setup.py install --skip-build --optimize
+	$(PYTHONBIN) setup.py install --skip-build --optimize
 
 requirements:
-	pip$(PYVER) install -r dev-requirements.txt
+	$(SUDO) pip$(PYVER) install -r dev-requirements.txt
 
 develop: requirements
-	$(PYTHON) setup.py develop --user
+	$(PYTHONBIN) setup.py develop --user
 
 test:
-	$(PYTHON) setup.py test
+	$(PYTHONBIN) setup.py test
 
 clean:
-	$(PYTHON) setup.py clean
+	$(PYTHONBIN) setup.py clean
 	find . -depth -type d -name __pycache__ -exec rm -rf {} \;
 
 distclean: clean
-	rm -rf costest.egg-info
+	rm -rf elicit.egg-info
 	rm -rf dist
 	rm -rf build
 	make -C docs clean
@@ -46,11 +64,11 @@ distclean: clean
 	rm -rf .eggs
 
 sdist: requirements
-	$(PYTHON) setup.py sdist
+	$(PYTHONBIN) setup.py sdist
 
 publish:
-	$(PYTHON) setup.py sdist upload
-	$(PYTHON) setup.py bdist_wheel upload
+	$(PYTHONBIN) setup.py sdist upload
+	$(PYTHONBIN) setup.py bdist_wheel upload
 
 docs:
 	make -C docs html
