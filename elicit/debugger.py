@@ -1037,22 +1037,27 @@ def set_trace(frame=None, start=0):
 
 
 # post mortems used to debug
-def post_mortem(t, exc=None, val=None, io=None):
+def post_mortem(tb=None, exc=None, val=None, io=None):
     "Start debugging at the given traceback."
+    if tb is None:
+        exc, val, tb = sys.exc_info()
+    if tb is None:
+        raise ValueError("A valid traceback must be passed if no "
+                         "exception is being handled")
     p = Debugger(io=io)
     p.reset()
-    while t.tb_next is not None:
-        t = t.tb_next
+    while tb.tb_next is not None:
+        tb = tb.tb_next
     if exc and val:
         p.print_exc(exc.__name__, val)
     else:
-        ex, val, _ = sys.exc_info()
+        exc, val, _ = sys.exc_info()
         del _
-        if ex is None:
+        if exc is None:
             DEBUG("No active exception!")
         else:
-            p.print_exc(ex.__name__, val)
-    p.interaction(t.tb_frame, t)
+            p.print_exc(exc.__name__, val)
+    p.interaction(tb.tb_frame, tb)
 
 
 def debug(method, *args, **kwargs):
