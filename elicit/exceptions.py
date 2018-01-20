@@ -39,7 +39,7 @@ class NewCommand(CLIException):
     Raise this with an instance of BaseCommands as a value.
     """
 
+
 class PageQuit(Exception):
     """Quit early from paged IO.
     """
-

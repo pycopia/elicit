@@ -16,11 +16,12 @@ else
 	SUDO = sudo
 endif
 
-.PHONY: info build install clean distclean develop test sdist requirements docs
+.PHONY: info build install clean distclean develop test sdist requirements docs lint
 
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
 	@echo "  info          Show info about the Python being used."
+	@echo "  lint          to lint the source with flake8."
 	@echo "  build         to just build the packages."
 	@echo "  install       to install from this workspace."
 	@echo "  develop       to set up for local development."
@@ -36,6 +37,9 @@ info:
 	@echo Specific Python used: $(PYTHONBIN)
 	@echo Python exension suffix: $(SUFFIX)
 	@echo sudo: $(SUDO)
+
+lint:
+	$(PYTHONBIN) -m flake8 elicit/
 
 build:
 	$(PYTHONBIN) setup.py build

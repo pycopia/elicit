@@ -40,7 +40,7 @@ class CommandParser:
         if self._historyfile:
             try:
                 readline.read_history_file(self._historyfile)
-            except:
+            except FileNotFoundError:
                 pass
         self.initialize()
         self.reset(controller)
@@ -65,10 +65,7 @@ class CommandParser:
 
     def __del__(self):
         if self._historyfile:
-            try:
-                readline.write_history_file(self._historyfile)
-            except:
-                pass
+            readline.write_history_file(self._historyfile)
 
     def reset(self, newcontroller=None):
         self._controllers = []
@@ -80,7 +77,7 @@ class CommandParser:
 
     def push_controller(self, newcontroller):
         lvl = int(newcontroller.environ.setdefault("SHLVL", 0))
-        newcontroller.environ["SHLVL"] = lvl+1
+        newcontroller.environ["SHLVL"] = lvl + 1
         self._controllers.append(newcontroller)
         self._controller = newcontroller  # current command holder
         cmdlist = newcontroller.get_command_names()
@@ -123,7 +120,7 @@ class CommandParser:
                         line = ui.user_input()
                         if not line:
                             continue
-                        while self.feed(line+"\n"):
+                        while self.feed(line + "\n"):
                             line = ui.more_user_input()
                     except EOFError:
                         self._controller._ui.write("\n")
@@ -133,10 +130,7 @@ class CommandParser:
         finally:
             readline.set_completer(oc)
             if self._historyfile:
-                try:
-                    readline.write_history_file(self._historyfile)
-                except:
-                    pass
+                readline.write_history_file(self._historyfile)
 
     def feed(self, text):
         text = self._buf + text
@@ -214,7 +208,7 @@ class CommandParser:
             fsm.push(c)
         try:
             val = self._controller.environ.expand(fsm.varname)
-        except:
+        except:  # noqa
             ex, val, tb = sys.exc_info()
             self._controller._ui.error("Could not expand variable "
                                        "{!r}: {} ({})".format(fsm.varname, ex, val))

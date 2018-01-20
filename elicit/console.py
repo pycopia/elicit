@@ -40,7 +40,7 @@ class ConsoleIO:
         self.closed = 0
         self.softspace = 0
         self._writtenlines = 0
-        if self.stdout.isatty(): # page only if output is a tty
+        if self.stdout.isatty():  # page only if output is a tty
             self.set_size()
             self._oldhandler = signal.getsignal(signal.SIGWINCH)
             signal.signal(signal.SIGWINCH, self._winch_handler)
@@ -61,7 +61,7 @@ class ConsoleIO:
     def set_pagerprompt(self, pagerprompt):
         self.pagerprompt = pagerprompt or "-- more (press any key to continue) --"
         lpp = len(self.pagerprompt)
-        self.prompterase = "\r" + " "*lpp + "\r"
+        self.prompterase = "\r" + " " * lpp + "\r"
 
     def _winch_handler(self, sig, st):
         self.set_size()
@@ -116,7 +116,7 @@ class ConsoleIO:
                 elif c == chr(4):
                     raise EOFError("User end input")
                 else:
-                    rows = needed = self.rows-1
+                    rows = needed = self.rows - 1
         return written
 
     def paged_writelines(self, lines):
@@ -127,14 +127,14 @@ class ConsoleIO:
     # of lines, also taking into account implicit wrapping.
     def _get_index(self, data, needed, i):
         cols = self.columns
-        l = n = 0
+        line = n = 0
         ld = len(data)
         while 1:
             n = data.find("\n", i)
             n = ((n < 0 and ld) or n) + 1
-            l += 1 + ((n-i) // cols)
-            if l >= needed or n >= ld:
-                return n, l
+            line += 1 + ((n - i) // cols)
+            if line >= needed or n >= ld:
+                return n, line
             i = n
 
     def _pause(self):

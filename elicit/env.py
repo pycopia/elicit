@@ -51,7 +51,7 @@ class Environ(dict):
             env = os.environ
         self.update(env)
 
-    def set(self, val):
+    def set(self, name, val):
         self.__setitem__(name, self.expand(str(val)))
 
     def export(self, nameval):
@@ -85,7 +85,7 @@ class Environ(dict):
                 vname = vname[1:-1]
             tail = value[j:]
             tv = self.get(vname)
-            if tv is not None: # exand to empty if not found or val is None
+            if tv is not None:  # exand to empty if not found or val is None
                 value = value[:i] + str(tv)
             else:
                 value = value[:i]

@@ -132,7 +132,7 @@ class BaseCommands:
         for arg in argv[1:]:
             try:
                 self._environ.export(arg)
-            except:
+            except:  # noqa
                 ex, val = sys.exc_info()[:2]
                 self._ui.print("** could not set value: %s (%s)" % (ex, val))
 
@@ -226,7 +226,7 @@ class BaseCommands:
                 else:
                     del argv[0]  # remove the '='
             self._aliases[name] = argv
-        except:
+        except:  # noqa
             ex, val = sys.exc_info()[:2]
             self._ui.error("{}: {}".format(ex.__name__, val))
             self._ui.print("alias: Could not set alias. Usage: alias name=value")
@@ -271,7 +271,7 @@ class ObjectCommands(BaseCommands):
     def _get_namespace(self):
         try:
             ns = vars(self._obj)
-        except:
+        except:  # noqa
             ns = globals()
         return ns
 
@@ -325,10 +325,11 @@ def get_command_list(commands):
     command_list.sort()
     return command_list
 
+
 def _convert(val, namespace):
     try:
         return eval(val, globals(), namespace)
-    except:
+    except:  # noqa
         return val
 
 

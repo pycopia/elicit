@@ -128,7 +128,7 @@ def checkline(filename, lineno, ui):
                     brackets = brackets + 1
                 elif c in (')', '}', ']'):
                     brackets = brackets - 1
-            lineno = lineno+1
+            lineno = lineno + 1
             line = linecache.getline(filename, lineno)
             if not line:
                 ui.print('*** end of file')
@@ -173,7 +173,7 @@ class Debugger(bdb.Bdb):
 
     def _expansions(self, c):
         if c == "S":  # current frame over total frames in backtrace
-            return "%s/%s" % (self.curindex+1, len(self.stack))
+            return "%s/%s" % (self.curindex + 1, len(self.stack))
 
     def forget(self):
         self.lineno = None
@@ -254,13 +254,13 @@ class Debugger(bdb.Bdb):
         globals = self.curframe.f_globals
         try:
             code = compile(line + '\n', '<stdin>', 'single')
-        except:
+        except:  # noqa
             t, v = sys.exc_info()[:2]
             self._ui.printf('*** Could not compile: %%r%s%%N: %s\n' % (t, v))
         else:
             try:
                 exec(code, globals, locals)
-            except:
+            except:  # noqa
                 t, v = sys.exc_info()[:2]
                 self._ui.printf('*** %%r%s%%N: %s\n' % (t, v))
 
@@ -418,7 +418,7 @@ class Debugger(bdb.Bdb):
             self._ui.printf(
                 "\n** %WThe program exited via sys.exit()%N. Exit status: {}\n".format(es))
             return es
-        except:
+        except:  # noqa
             ex, val, t = sys.exc_info()
             self.print_exc(ex, val)
             self.interaction(t.tb_frame, t)
@@ -515,7 +515,7 @@ class DebuggerCommands(commands.BaseCommands):
                 return
             else:
                 filename = f
-            lineno = lineno[colon+1:].lstrip()
+            lineno = lineno[colon + 1:].lstrip()
             try:
                 lineno = int(lineno)
             except ValueError as msg:
@@ -530,7 +530,7 @@ class DebuggerCommands(commands.BaseCommands):
                     func = eval(lineno,
                                 self._obj.curframe.f_globals,
                                 self._obj.curframe.f_locals)
-                except:
+                except:  # noqa
                     func = lineno
                 try:
                     if hasattr(func, '__func__'):
@@ -538,7 +538,7 @@ class DebuggerCommands(commands.BaseCommands):
                     code = func.__code__
                     lineno = code.co_firstlineno
                     filename = code.co_filename
-                except:
+                except:  # noqa
                     # last thing to try
                     (ok, filename, ln) = self._obj.lineinfo(lineno)
                     if not ok:
@@ -674,10 +674,10 @@ class DebuggerCommands(commands.BaseCommands):
                 # Make sure it works for "clear C:\foo\bar.py:12"
                 i = arg.rfind(':')
                 filename = arg[:i]
-                arg = arg[i+1:]
+                arg = arg[i + 1:]
                 try:
                     lineno = int(arg)
-                except:
+                except ValueError:
                     err = "Invalid line number (%s)" % arg
                 else:
                     err = self._obj.clear_break(filename, lineno)
@@ -769,7 +769,8 @@ class DebuggerCommands(commands.BaseCommands):
                 # Do the jump, fix up our copy of the stack, and display the
                 # new position
                 self._obj.curframe.f_lineno = lineno
-                self._obj.stack[self._obj.curindex] = self._obj.stack[self._obj.curindex][0], lineno
+                self._obj.stack[self._obj.curindex] = \
+                    self._obj.stack[self._obj.curindex][0], lineno
                 self._obj.print_stack_entry(self._obj.stack[self._obj.curindex])
             except ValueError as e:
                 self._ui.print('*** Jump failed:', e)
@@ -803,9 +804,9 @@ class DebuggerCommands(commands.BaseCommands):
         dict = f.f_locals
         n = co.co_argcount
         if co.co_flags & 4:
-            n = n+1
+            n = n + 1
         if co.co_flags & 8:
-            n = n+1
+            n = n + 1
         for i in range(n):
             name = co.co_varnames[i]
             self._ui.print(name, '=', None)
@@ -877,7 +878,7 @@ class DebuggerCommands(commands.BaseCommands):
         expression = " ".join(arguments["argv"][1:])
         try:
             self._ui.print(repr(self._obj.getval(expression)))
-        except:
+        except:  # noqa
             ex, val = sys.exc_info()[:2]
             self._ui.print("***", ex, val)
 
@@ -927,7 +928,7 @@ class DebuggerCommands(commands.BaseCommands):
         arg = " ".join(arguments["argv"][1:])
         try:
             value = eval(arg, self._obj.curframe.f_globals, self._obj.curframe.f_locals)
-        except:
+        except:  # noqa
             t, v = sys.exc_info()[:2]
             if isinstance(t, str):
                 exc_type_name = t
@@ -966,12 +967,14 @@ class DebuggerCommands(commands.BaseCommands):
         if self._obj.lineno is None:
             start = 0
         else:
-            start = max(0,  self._obj.lineno - 9)
+            start = max(0, self._obj.lineno - 9)
         lines = linecache.getlines(filename)[start:]
         for lineno, line in enumerate(lines):
             mo = patt.search(line)
             if mo:
-                self._print_source(filename, lineno+start-10, lineno+start+10)
+                self._print_source(filename,
+                                   lineno + start - 10,
+                                   lineno + start + 10)
                 return
         else:
             self._ui.print("Pattern not found.")
@@ -979,7 +982,7 @@ class DebuggerCommands(commands.BaseCommands):
     def _print_source(self, filename, first, last):
         breaklist = self._obj.get_file_breaks(filename)
         try:
-            for lineno in range(first, last+1):
+            for lineno in range(first, last + 1):
                 line = linecache.getline(filename, lineno)
                 if not line:
                     self._ui.printf('%Y[EOF]%N\n')
@@ -1066,7 +1069,7 @@ def debug(method, *args, **kwargs):
     """
     try:
         method(*args, **kwargs)
-    except:
+    except:  # noqa
         ex, val, tb = sys.exc_info()
         if ex in (SyntaxError, IndentationError, KeyboardInterrupt):
             sys.__excepthook__(ex, val, tb)

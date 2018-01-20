@@ -20,7 +20,7 @@ import subprocess
 from elicit import colors
 
 __all__ = ['imgcat', 'divider', 'cowsay', 'dedent', 'error', 'warning', 'para',
-'get_resource', 'debugger', 'init']
+           'get_resource', 'debugger', 'init']
 
 
 WIDTH = LINES = _text_wrapper = _old_handler = PWD = None
@@ -33,20 +33,21 @@ def _reset_size(sig, tr):
     except OSError:
         WIDTH, LINES = 80, 24
     _text_wrapper = textwrap.TextWrapper(width=WIDTH - 10,
-                                         initial_indent=" "*4,
-                                         subsequent_indent=" "*4,
+                                         initial_indent=" " * 4,
+                                         subsequent_indent=" " * 4,
                                          replace_whitespace=True,
                                          max_lines=LINES - 4)
     if callable(_old_handler):
         _old_handler(sig, tr)
+
 
 _reset_size(signal.SIGWINCH, None)
 _old_handler = signal.signal(signal.SIGWINCH, _reset_size)
 
 
 def xterm_divider():
-    l = os.get_terminal_size().columns - 6
-    line = '  ◀' + '═' * l + '▶\n'
+    lines = os.get_terminal_size().columns - 6
+    line = '  ◀' + '═' * lines + '▶\n'
     sys.stdout.write(line)
 
 
@@ -71,7 +72,7 @@ def xterm_imgcat(imgdata):
 
 def iterm_imgcat(imgdata):
     sys.stdout.buffer.write(b'\x1b]1337;File=inline=1:' +
-            base64.b64encode(imgdata) + b'\x07\n')
+                            base64.b64encode(imgdata) + b'\x07\n')
 
 
 def cowsay(text):
@@ -86,6 +87,7 @@ def cowsay(text):
 
 _DEDENT_RE = re.compile(r'\n([ \t]+)')
 
+
 def dedent(text):
     return _DEDENT_RE.sub(r" ", text)
 
@@ -97,6 +99,7 @@ def error(text):
        (__)    )\
           ||--|| *
 """)
+
 
 def warning(text):
     colors.box(text, 2, color=colors.YELLOW)
@@ -151,6 +154,7 @@ class _MakeDebugger(object):
         __import__(modname)
         debugger = sys.modules[modname]
         return getattr(debugger, name)
+
 
 debugger = _MakeDebugger()
 

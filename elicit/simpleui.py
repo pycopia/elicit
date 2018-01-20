@@ -36,14 +36,14 @@ def default_error(text):
 def get_text(prompt="", msg=None, input=input):
     """Prompt user to enter multiple lines of text."""
 
-    print ((msg or "Enter text.") + " End with ^D or a '.' as first character.")
+    print((msg or "Enter text.") + " End with ^D or a '.' as first character.")
     lines = []
     while True:
         try:
             line = input(prompt)
         except EOFError:
             break
-        if line == ".": #  dot on a line by itself also ends
+        if line == ".":  # dot on a line by itself also ends
             break
         lines.append(line)
     return "\n".join(lines)
@@ -109,14 +109,14 @@ def choose(somelist, defidx=0, prompt="choose", input=input, error=default_error
     assert len(list(somelist)) > 0, "list to choose from has no elements!"
     print_menu_list(somelist, lines=lines, columns=columns)
     defidx = int(defidx)
-    assert defidx >=0 and defidx < len(somelist), "default index out of range."
+    assert defidx >= 0 and defidx < len(somelist), "default index out of range."
     while 1:
         try:
-            ri = get_input(prompt, defidx+1, input) # menu list starts at one
+            ri = get_input(prompt, defidx + 1, input)  # menu list starts at one
         except EOFError:
             return None
         try:
-            idx = int(ri)-1
+            idx = int(ri) - 1
         except ValueError:
             error("Bad selection. Type in the number.")
             continue
@@ -128,19 +128,20 @@ def choose(somelist, defidx=0, prompt="choose", input=input, error=default_error
                 continue
 
 
-def choose_multiple(somelist, chosen=None, prompt="choose multiple", input=input, error=default_error,
+def choose_multiple(somelist, chosen=None, prompt="choose multiple",
+                    input=input, error=default_error,
                     lines=LINES, columns=COLUMNS):
     somelist = somelist[:]
     if chosen is None:
         chosen = []
     while 1:
-        print( "Choose from list. Enter to end, negative index removes from chosen.")
+        print("Choose from list. Enter to end, negative index removes from chosen.")
         print_menu_list(somelist, lines=lines, columns=columns)
         if chosen:
             print("You have: ")
             print_menu_list(chosen, lines=lines, columns=columns)
         try:
-            ri = get_input(prompt, None, input) # menu list starts at one
+            ri = get_input(prompt, None, input)  # menu list starts at one
         except EOFError:
             return chosen
         if not ri:
@@ -162,8 +163,8 @@ def choose_multiple(somelist, chosen=None, prompt="choose multiple", input=input
                 error("No zero.")
             else:
                 try:
-                    chosen.append(somelist[idx-1])
-                    del somelist[idx-1]
+                    chosen.append(somelist[idx - 1])
+                    del somelist[idx - 1]
                 except IndexError:
                     error("Selection out of range.")
 
@@ -234,10 +235,10 @@ def choose_multiple_from_map(somemap, chosen=None, prompt="choose multiple",
             print("(You have selected all possible choices.)")
             first = 0
         if chosen:
-            print ("You have: ")
+            print("You have: ")
             print_menu_map(chosen, lines=lines, columns=columns)
         try:
-            ri = get_input(prompt, None, input) # menu list starts at one
+            ri = get_input(prompt, None, input)  # menu list starts at one
         except EOFError:
             return chosen
         if not ri:
@@ -248,8 +249,8 @@ def choose_multiple_from_map(somemap, chosen=None, prompt="choose multiple",
             error("Bad selection. Please try again.")
             continue
         else:
-            if idx < 0: # FIXME assumes numeric keys
-                idx = -idx # FIXME handle zero index
+            if idx < 0:  # FIXME assumes numeric keys
+                idx = -idx  # FIXME handle zero index
                 try:
                     somemap[idx] = chosen[idx]
                     del chosen[idx]
@@ -264,7 +265,7 @@ def choose_multiple_from_map(somemap, chosen=None, prompt="choose multiple",
 
 
 def print_list(clist, indent=0, width=74):
-    indent = min(max(indent,0),width-1)
+    indent = min(max(indent, 0), width - 1)
     if indent:
         print(" " * indent, end="")
     col = indent + 2
@@ -275,13 +276,13 @@ def print_list(clist, indent=0, width=74):
             print()
             col = indent + len(ps) + 1
             if indent:
-                print (" " * indent, end="")
-        print (ps, end="")
+                print(" " * indent, end="")
+        print(ps, end="")
     if col + len(clist[-1]) > width:
         print()
         if indent:
-            print (" " * indent, end="")
-    print (clist[-1])
+            print(" " * indent, end="")
+    print(clist[-1])
 
 
 def yes_no(prompt, default=True, input=input):
@@ -301,7 +302,7 @@ def edit_text(text, prompt="Edit text"):
             text = fo.read()
     finally:
         os.unlink(fname)
-    return text[text.find("\n")+1:]  # chop first line.
+    return text[text.find("\n") + 1:]  # chop first line.
 
 
 def print_menu_list(clist, lines=LINES, columns=COLUMNS):
@@ -309,50 +310,53 @@ def print_menu_list(clist, lines=LINES, columns=COLUMNS):
 
     Use two columns if wide terminal.
     """
-    fmt = "{{:3d}}: {{:{cols}.{cols}}}".format(cols=columns-6)
+    fmt = "{{:3d}}: {{:{cols}.{cols}}}".format(cols=columns - 6)
     if columns > 80:
-        fmt2 = "{{:3d}}: {{:{cols}.{cols}}} | {{:3d}}: {{:{cols}.{cols}}}".format(cols=(columns-14)//2)
+        fmt2 = "{{:3d}}: {{:{cols}.{cols}}} | {{:3d}}: {{:{cols}.{cols}}}".format(
+            cols=(columns - 14) // 2)
         h = (len(clist) + 1) // 2
-        i1, i2 = 1, h+1
+        i1, i2 = 1, h + 1
         for c1, c2 in zip_longest(clist[:h], clist[h:]):
             if c2:
-                print(fmt2.format(i1, str(c1)[-(columns//2)+7:], i2, str(c2)[-(columns//2)+7:]))
+                print(fmt2.format(i1, str(c1)[-(columns // 2) + 7:], i2,
+                      str(c2)[-(columns // 2) + 7:]))
             else:
-                print(fmt.format(i1, str(c1)[-columns+7:]))
+                print(fmt.format(i1, str(c1)[-columns + 7:]))
             i1 += 1
             i2 += 1
     else:
         for i, c1 in enumerate(clist):
-            print(fmt.format(i+1, str(c1)[-columns+7:]))
+            print(fmt.format(i + 1, str(c1)[-columns + 7:]))
 
 
 def print_menu_map(mapping, lines=LINES, columns=COLUMNS):
     """Print a list with leading numeric menu choices. Use two columns if necessary."""
     keys = sorted(mapping.keys())
     first = keys[0]
-    fmt  = "{{!s:>4s}}: {{:{cols}.{cols}}}".format(cols=columns-6)
+    fmt = "{{!s:>4s}}: {{:{cols}.{cols}}}".format(cols=columns - 6)
     if columns > 80:
-        fmt2 = "{{!s:>4s}}: {{:{cols}.{cols}}} | {{!s:>4s}}: {{:{cols}.{cols}}}".format(cols=(columns-16)//2)
-        h = (len(mapping)+1)//2
+        fmt2 = "{{!s:>4s}}: {{:{cols}.{cols}}} | {{!s:>4s}}: {{:{cols}.{cols}}}".format(
+            cols=(columns - 16) // 2)
+        h = (len(mapping) + 1) // 2
         for k1, k2 in zip_longest(keys[:h], keys[h:]):
             if k2 is not None:
-                print (fmt2.format(k1, mapping[k1], k2, mapping[k2]))
+                print(fmt2.format(k1, mapping[k1], k2, mapping[k2]))
             else:
-                print (fmt.format(k1, mapping[k1]))
+                print(fmt.format(k1, mapping[k1]))
     else:
         for key in keys:
-            print (fmt.format(key, mapping[key]))
+            print(fmt.format(key, mapping[key]))
     return first
 
 
 def _test(argv):
-    print ("columns:", COLUMNS, "ines:", LINES)
+    print("columns:", COLUMNS, "ines:", LINES)
 
     lsize = LINES
-    l = []
+    lines = []
     for i in range(lsize):
-        l.append("{}_{}".format(i, "".join(map(chr, list(range(34,109))))))
-    choose_multiple(l, prompt="choose")
+        lines.append("{}_{}".format(i, "".join(map(chr, list(range(34, 109))))))
+    choose_multiple(lines, prompt="choose")
 
     print(repr(get_int("age")))
     print(repr(get_int("age", 22)))
@@ -360,7 +364,6 @@ def _test(argv):
 
 
 if __name__ == "__main__":
-    import sys
     _test(sys.argv)
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

@@ -22,12 +22,12 @@ Use like:
 This will pull all necessary objects into your script.
 """
 
-from elicit.commands import *
-from elicit.console import *
-from elicit.controller import *
-from elicit.env import *
-from elicit.parser import *
-from elicit.themes import *
-from elicit.ui import *
+from elicit.commands import *  # noqa
+from elicit.console import *  # noqa
+from elicit.controller import *  # noqa
+from elicit.env import *  # noqa
+from elicit.parser import *  # noqa
+from elicit.themes import *  # noqa
+from elicit.ui import *  # noqa
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

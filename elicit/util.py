@@ -35,4 +35,3 @@ def globargv(argv):
         return newargv
     else:
         return argv
-

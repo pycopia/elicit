@@ -17,7 +17,6 @@ Simple forms and user inputs using curses module.
 """
 
 import sys
-import os
 import signal
 import curses
 import curses.ascii
@@ -35,6 +34,7 @@ def _reset_size(sig, tr):
     global COLUMNS, LINES
     COLUMNS, LINES = get_terminal_size()
 
+
 _reset_size(signal.SIGWINCH, None)
 
 signal.signal(signal.SIGWINCH, _reset_size)
@@ -46,10 +46,9 @@ def choose(somelist, defidx=0, prompt="choose", lines=LINES, columns=COLUMNS):
 
 def _choose(stdscr, somelist, defidx, prompt, lines, columns):
     oldcur = curses.curs_set(0)
-    pad = curses.newpad(len(somelist)+1, columns-2)
+    pad = curses.newpad(len(somelist) + 1, columns - 2)
     for line in somelist:
         pad.addstr(str(line))
-
 
     pminrow = defidx  # also somelist index
     pmincol = 0
@@ -58,15 +57,15 @@ def _choose(stdscr, somelist, defidx, prompt, lines, columns):
     smaxrow = lines - 3
     smaxcol = columns - 2
 
-    topwin = stdscr.subwin(sminrow, columns-2, 2, 1)
+    topwin = stdscr.subwin(sminrow, columns - 2, 2, 1)
 
     # top context window
-    sminrow_top = sminrow - 1
-    smaxrow_top = sminrow - 1
+    # sminrow_top = sminrow - 1
+    # smaxrow_top = sminrow - 1
     # Build form
     stdscr.clear()
     stdscr.addstr("{} (Press Enter to select)".format(prompt))
-    curses.textpad.rectangle(stdscr, 1, 0, lines-2, columns-1)
+    curses.textpad.rectangle(stdscr, 1, 0, lines - 2, columns - 1)
     stdscr.refresh()
     pad.chgat(pminrow, 0, smaxcol - 1, curses.A_REVERSE)
     pad.refresh(pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol)
@@ -90,7 +89,7 @@ def _choose(stdscr, somelist, defidx, prompt, lines, columns):
 #            pad.noutrefresh(pminrow - sminrow, pmincol,
 #                        sminrow_top, smincol,
 #                        smaxrow_top, smaxcol)
-            #pad.chgat(sminrow_top, 0, smaxcol - 1, curses.A_NORMAL)
+#            pad.chgat(sminrow_top, 0, smaxcol - 1, curses.A_NORMAL)
 
         pad.chgat(pminrow + 1, 0, smaxcol - 1, curses.A_NORMAL)
         pad.chgat(pminrow, 0, smaxcol - 1, curses.A_REVERSE)

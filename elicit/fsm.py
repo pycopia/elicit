@@ -17,6 +17,11 @@ Basic FSM for building CLI parsers for prompt expansions, etc.
 
 ANY = -1
 
+
+class FSMError(Exception):
+    pass
+
+
 class FSM:
 
     ANY = ANY
@@ -42,7 +47,7 @@ class FSM:
         self.stack.pop()
 
     def add_default_transition(self, action, next_state):
-        if action == None and next_state == None:
+        if action is None and next_state is None:
             self.default_transition = None
         else:
             self.default_transition = (action, next_state)
@@ -61,14 +66,11 @@ class FSM:
             try:
                 return self._transitions[(ANY, state)]
             except KeyError:
-                try:
-                    return self._transitions[(SREType, state)]
-                except KeyError:
-                    # no expression matched, so check for default
-                    if self.default_transition is not None:
-                        return self.default_transition
-                    else:
-                        raise FSMError('Transition {!r} is undefined.'.format(input_symbol))
+                # no expression matched, so check for default
+                if self.default_transition is not None:
+                    return self.default_transition
+                else:
+                    raise FSMError('Transition {!r} is undefined.'.format(input_symbol))
 
     def process(self, input_symbol):
         action, next_state = self.get_transition(input_symbol, self.current_state)
@@ -80,8 +82,6 @@ class FSM:
     def process_string(self, s):
         for c in s:
             self.process(c)
-
-
 
 
 if __name__ == "__main__":

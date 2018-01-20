@@ -102,7 +102,7 @@ def color(text, fg, bg=None, bold=False):
         raise ValueError("Bad color value: {},{}".format(fg, bg))
 
 
-def color256(text:str, fg:int, bg:int=0):
+def color256(text: str, fg: int, bg: int=0):
     sys.stdout.write("\x1b[38;5;{};48;5;{}m".format(fg, bg))
     sys.stdout.write(text)
     sys.stdout.write(RESET)
@@ -141,8 +141,8 @@ _BOXCHARS = {1: ['┏', '━', '┃', '┓', '┗', '┛'],
 
 def box(text, level=0, color=GREY):
     UL, hor, vert, UR, LL, LR = _BOXCHARS[level]
-    tt = "{}{}{}".format(UL, hor*(len(text)+2), UR)
-    bt = "{}{}{}".format(LL, hor*(len(text)+2), LR)
+    tt = "{}{}{}".format(UL, hor * (len(text) + 2), UR)
+    bt = "{}{}{}".format(LL, hor * (len(text) + 2), LR)
     ml = "{} {}{}{} {}".format(vert, color, text, RESET, vert)
     sys.stdout.write("\n".join((tt, ml, bt)))
     sys.stdout.write("\n")

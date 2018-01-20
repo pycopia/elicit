@@ -20,8 +20,8 @@ Controller component module.
 __all__ = ['CommandController']
 
 import sys
+import readline
 
-from . import env
 from . import commands
 from . import exceptions
 from . import docopt
@@ -115,7 +115,7 @@ class CommandController:
                 exceptions.CommandExit,
                 KeyboardInterrupt):
             raise  # pass these through to parser
-        except:
+        except:  # noqa
             ex, val, tb = sys.exc_info()
             self.except_hook(ex, val, tb)
         else:

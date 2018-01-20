@@ -18,7 +18,6 @@ User Interface base classes and themes.
 
 __all__ = ['UserInterface', 'FormatWrapper']
 
-import sys
 import os
 import time
 import textwrap
@@ -207,7 +206,9 @@ class UserInterface:
         i = s.find("\n")
         if i > 0:
             return (color + s[:i] +
-                    self._theme.NORMAL + textwrap.indent(textwrap.dedent(self.prompt_format(s[i:])), "  ") + "\n")
+                    self._theme.NORMAL +
+                    textwrap.indent(textwrap.dedent(self.prompt_format(s[i:])), "  ") +
+                    "\n")
         else:
             return color + s + self._theme.NORMAL + "\n"
 
@@ -317,7 +318,6 @@ class UserInterface:
         ff = FSM(0)
         self._fsmstates(ff)
         self._ffsm = ff
-
 
     def _fsmstates(self, fsm):
         fsm.add_default_transition(self._error, 0)

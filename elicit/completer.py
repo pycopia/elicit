@@ -64,4 +64,3 @@ def get_class_members(klass, rv=None):
 def get_globals():
     rv = keyword.kwlist + dir(builtins)
     return list(set(rv))  # Remove duplicates
-
