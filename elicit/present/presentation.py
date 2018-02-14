@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.5 -i
+#!/usr/bin/env python3.6 -i
 
 """
 An unusual way to give a presentation using Python.
@@ -19,15 +19,17 @@ import subprocess
 
 from elicit import colors
 
-__all__ = ['imgcat', 'divider', 'cowsay', 'dedent', 'error', 'warning', 'para',
-           'get_resource', 'debugger', 'init']
+
+__all__ = ['imgcat', 'divider', 'cowsay', 'dedent', 'error', 'head', 'warning',
+           'bullet', 'para', 'get_resource', 'debugger', 'init',
+           'SlideController']
 
 
-WIDTH = LINES = _text_wrapper = _old_handler = PWD = None
+WIDTH = LINES = _text_wrapper = _bullet_wrapper = _old_handler = PWD = None
 
 
 def _reset_size(sig, tr):
-    global WIDTH, LINES, _text_wrapper, _old_handler
+    global WIDTH, LINES, _text_wrapper, _bullet_wrapper, _old_handler
     try:
         WIDTH, LINES = os.get_terminal_size()
     except OSError:
@@ -37,6 +39,11 @@ def _reset_size(sig, tr):
                                          subsequent_indent=" " * 4,
                                          replace_whitespace=True,
                                          max_lines=LINES - 4)
+    _bullet_wrapper = textwrap.TextWrapper(width=WIDTH - 10,
+                                           initial_indent=" " * 4,
+                                           subsequent_indent=" " * 6,
+                                           replace_whitespace=True,
+                                           max_lines=LINES - 4)
     if callable(_old_handler):
         _old_handler(sig, tr)
 
@@ -75,6 +82,21 @@ def iterm_imgcat(imgdata):
                             base64.b64encode(imgdata) + b'\x07\n')
 
 
+def head(line):
+    colors.white(line.center(WIDTH - 2))
+
+
+def para(text):
+    print()
+    print(_text_wrapper.fill(dedent(text)))
+    print()
+
+
+def bullet(text):
+    print()
+    print(_bullet_wrapper.fill(f"{colors.WHITE}• {colors.NORMAL}" + dedent(text)))
+
+
 def cowsay(text):
     colors.box(text, 2, color=colors.GREEN)
     print(r"""        \   ^__^
@@ -109,12 +131,6 @@ def warning(text):
         ( )
       .( o ).
 """)
-
-
-def para(text):
-    print()
-    print(_text_wrapper.fill(dedent(text)))
-    print()
 
 
 def get_resource(name):
@@ -162,12 +178,34 @@ debugger = _MakeDebugger()
 def debugger_hook(exc, value, tb):
     if exc is NameError:
         error(value.args[0])
-    elif exc is SyntaxError:  # treat it as a shell command
-        os.system(value.args[1][3].strip())
+    elif exc is SyntaxError:
+        error("Eh? " + value.args[1][3].strip())
     elif exc in (IndentationError, KeyboardInterrupt):
         sys.__excepthook__(exc, value, tb)
     else:
         debugger.post_mortem(tb, exc, value)
+
+
+class SlideController:
+
+    def __init__(self, pages):
+        self.pages = pages
+        self._page_i = 0
+
+    def nextpage(self):
+        page = self.pages[self._page_i]
+        page()
+        self._page_i = (self._page_i + 1) % len(self.pages)
+
+    def prevpage(self):
+        self._page_i = (self._page_i - 2) % len(self.pages)
+        page = self.pages[self._page_i]
+        page()
+
+    def goto(self, page):
+        self._page_i = max(min(page, len(self.pages)), 0)
+        page = self.pages[self._page_i]
+        page()
 
 
 class PresoObject:
@@ -189,13 +227,13 @@ def init(argv):
     builtins._ = PWD
     sys.excepthook = debugger_hook
     sys.displayhook = DisplayHook(sys.stdout)
-    sys.ps1 = "{}~~😄{}➤ ".format(colors.PROMPT_GREEN, colors.PROMPT_NORMAL)
-    sys.ps2 = "more> "
+    sys.ps1 = "{}~~😄{} ➤ ".format(colors.PROMPT_GREEN, colors.PROMPT_NORMAL)
+    sys.ps2 = "...more..> "
 
 
 if sys.platform == "darwin":
     readline.parse_and_bind("^I rl_complete")
-    tp = os.environ.get("TERMINAL_PROGRAM")
+    tp = os.environ.get("TERM_PROGRAM")
     if tp and "iterm" in tp.lower():
         imgcat = iterm_imgcat
         divider = iterm_divider

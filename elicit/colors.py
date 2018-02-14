@@ -144,6 +144,7 @@ def box(text, level=0, color=GREY):
     tt = "{}{}{}".format(UL, hor * (len(text) + 2), UR)
     bt = "{}{}{}".format(LL, hor * (len(text) + 2), LR)
     ml = "{} {}{}{} {}".format(vert, color, text, RESET, vert)
+    sys.stdout.write("\n")
     sys.stdout.write("\n".join((tt, ml, bt)))
     sys.stdout.write("\n")
 
