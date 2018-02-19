@@ -21,8 +21,8 @@ from elicit import colors
 
 
 __all__ = ['imgcat', 'divider', 'cowsay', 'dedent', 'error', 'head', 'warning',
-           'bullet', 'para', 'get_resource', 'debugger', 'init',
-           'SlideController']
+           'bullet', 'para', 'get_resource', 'print_image', 'debugger', 'init',
+           'clear', 'print_url', 'URL', 'open_resource', 'SlideController']
 
 
 WIDTH = LINES = _text_wrapper = _bullet_wrapper = _old_handler = PWD = None
@@ -51,6 +51,7 @@ def _reset_size(sig, tr):
 _reset_size(signal.SIGWINCH, None)
 _old_handler = signal.signal(signal.SIGWINCH, _reset_size)
 
+clear = colors.clear
 
 def xterm_divider():
     lines = os.get_terminal_size().columns - 6
@@ -82,18 +83,46 @@ def iterm_imgcat(imgdata):
                             base64.b64encode(imgdata) + b'\x07\n')
 
 
+def iterm_print_url(text, url):
+    sys.stdout.buffer.write(
+        b'\x1b]8;;%s\x07%s\x1b]8;;\x07' % (url.encode("utf-8"), text.encode("utf-8"))
+    )
+
+
+def open_resource(name):
+    """Open a data resource in the appropriate application using a command."""
+    fname = os.path.join(PWD, "data", name)
+    subprocess.check_output(["open" if sys.platform == "darwin" else "xdg-open", fname])
+
+
+def iterm_URL(text, url):
+    return '\x1b]8;;{}\x07{}\x1b]8;;\x07'.format(url, text)
+
+
+def xterm_URL(text, url):
+    return f"{text} ({url})"
+
+
+def xterm_print_url(text, url):
+    sys.stdout.write(f"{text} ({url})")
+
+
+def print_image(imgname):
+    img = get_resource(imgname)
+    imgcat(img)
+
+
 def head(line):
     colors.white(line.center(WIDTH - 2))
+    print("\n")
 
 
 def para(text):
-    print()
     print(_text_wrapper.fill(dedent(text)))
     print()
 
 
 def bullet(text):
-    print()
     print(_bullet_wrapper.fill(f"{colors.WHITE}• {colors.NORMAL}" + dedent(text)))
 
 
@@ -237,9 +266,13 @@ if sys.platform == "darwin":
     if tp and "iterm" in tp.lower():
         imgcat = iterm_imgcat
         divider = iterm_divider
+        print_url = iterm_print_url
+        URL = iterm_URL
     else:
         imgcat = xterm_imgcat
         divider = xterm_divider
+        print_url = xterm_print_url
+        URL = xterm_URL
 else:
     readline.parse_and_bind("tab: complete")
     readline.parse_and_bind('"\M-?": possible-completions')
