@@ -873,7 +873,7 @@ class DebuggerCommands(commands.BaseCommands):
         """Print the value of the expression in the current frame.
 
         Usage:
-            print <expression>
+            print <expression>...
         """
         expression = " ".join(arguments["argv"][1:])
         try:
@@ -897,7 +897,7 @@ class DebuggerCommands(commands.BaseCommands):
         last = arguments["<last>"]
         first = arguments["<first>"]
         if first is not None:
-            first = max(1, int(first) - 10)
+            first = max(1, int(first))
             if last is not None:
                 last = int(last)
                 if last < first:

@@ -37,6 +37,14 @@ class BasicCommands(commands.BaseCommands):
         """
         self._ui.print("got arguments:", arguments)
 
+    def nestedusage(self, arguments):
+        """Check nested optional usage.
+
+        Usage:
+            nestedusage [<one> [<two>]]
+        """
+        self._ui.print("got arguments:", arguments)
+
 
 def basic_cli():
     """Construct a basic, default CLI to play with."""
