@@ -19,7 +19,10 @@ import sys
 import os
 import linecache
 import bdb
+import dis
+import code
 import re
+import readline
 
 from reprlib import Repr
 
@@ -31,6 +34,7 @@ from . import ui
 from . import commands
 from . import env
 from . import themes
+from . import completer
 
 # Create a custom safe Repr instance and increase its maxstring.
 # The default of 30 truncates error messages too easily.
@@ -161,12 +165,13 @@ class Debugger(bdb.Bdb):
     def __init__(self, skip=None, io=None):
         bdb.Bdb.__init__(self, skip)
         self._io = io or console.ConsoleIO()
+        self.tb_lineno = {}
 
     def reset(self):
         bdb.Bdb.reset(self)  # old style class
         self.forget()
         self._parser = None
-        theme = DebuggerTheme(ps1="%GDebug%N:%S> ")
+        theme = DebuggerTheme(ps1="%gDebug%N:%S> ")
         e = env.Environ()
         self._ui = ui.UserInterface(self._io, environment=e, theme=theme)
         self._ui.register_expansion("S", self._expansions)
@@ -180,11 +185,16 @@ class Debugger(bdb.Bdb):
         self.stack = []
         self.curindex = 0
         self.curframe = None
+        self.tb_lineno.clear()
 
     def setup(self, f, t):
         self.forget()
         self.stack, self.curindex = self.get_stack(f, t)
         self.curframe = self.stack[self.curindex][0]
+        while t:
+            lineno = lasti2lineno(t.tb_frame.f_code, t.tb_lasti)
+            self.tb_lineno[t.tb_frame] = lineno
+            t = t.tb_next
 
     # Override Bdb methods
 
@@ -256,13 +266,13 @@ class Debugger(bdb.Bdb):
             code = compile(line + '\n', '<stdin>', 'single')
         except:  # noqa
             t, v = sys.exc_info()[:2]
-            self._ui.printf('*** Could not compile: %%r%s%%N: %s\n' % (t, v))
+            self._ui.printf('*** Could not compile: %%r%s%%N: %s\n' % (t.__name__, v))
         else:
             try:
                 exec(code, globals, locals)
             except:  # noqa
                 t, v = sys.exc_info()[:2]
-                self._ui.printf('*** %%r%s%%N: %s\n' % (t, v))
+                self._ui.printf('*** %%r%s%%N: %s\n' % (t.__name__, v))
 
     def go_up(self):
         if self.curindex == 0:
@@ -425,6 +435,15 @@ class Debugger(bdb.Bdb):
             return 99
 
 
+def lasti2lineno(code, lasti):
+    linestarts = list(dis.findlinestarts(code))
+    linestarts.reverse()
+    for i, lineno in linestarts:
+        if lasti >= i:
+            return lineno
+    return 0
+
+
 class DebuggerParser(parser.CommandParser):
     def initialize(self):
         ANY = ui.ANY
@@ -469,10 +488,33 @@ class DebuggerCommands(commands.BaseCommands):
         """Execute <statement> in current frame context.
 
         Usage:
-            execute <statement>
-    """
+            execute <statement>...
+        """
         line = " ".join(arguments["argv"][1:])
         self._obj.execline(line)
+
+    def python(self, arguments):
+        """Enter an interactive interpreter in the current frame.
+
+        Usage:
+            python
+        """
+        ns = self._obj.curframe.f_globals.copy()
+        ns.update(self._obj.curframe.f_locals)
+        console = code.InteractiveConsole(locals=ns,
+                                          filename=self._obj.curframe.f_code.co_filename)
+        console.raw_input = self._ui.user_input
+        try:
+            saveps1, saveps2 = sys.ps1, sys.ps2
+        except AttributeError:
+            saveps1, saveps2 = ">>> ", "... "
+        sys.ps1, sys.ps2 = "%GPython%N:%S> ", "more> "
+        oc = readline.get_completer()
+        readline.set_completer(completer.Completer(ns).complete)
+        console.interact(banner="You are now in Python. ^D exits.",
+                         exitmsg="Resuming debugger.")
+        readline.set_completer(oc)
+        sys.ps1, sys.ps2 = saveps1, saveps2
 
     def brk(self, arguments):
         """Set a break point.
@@ -827,7 +869,7 @@ class DebuggerCommands(commands.BaseCommands):
 
         Usage:
             show [<name>...]
-    """
+        """
         f = self._obj.curframe
         args = arguments["<name>"]
         if args:
@@ -880,7 +922,26 @@ class DebuggerCommands(commands.BaseCommands):
             self._ui.print(repr(self._obj.getval(expression)))
         except:  # noqa
             ex, val = sys.exc_info()[:2]
-            self._ui.print("***", ex, val)
+            self._ui.error("{}: {}".format(ex.__name__, val))
+
+    def info(self, arguments):
+        """Print information about the current frame's code.
+
+        Usage:
+            info
+        """
+        f = self._obj.curframe
+        self._ui.print(dis.code_info(f.f_code))
+
+    def disassemble(self, arguments):
+        """Print op codes for the current frame.
+
+        Usage:
+            disassemble
+        """
+        f = self._obj.curframe
+        bc = dis.Bytecode(f.f_code, current_offset=f.f_lasti)
+        self._ui.print(bc.dis())
 
     def list(self, arguments):
         """List source code for the current file.
@@ -981,6 +1042,7 @@ class DebuggerCommands(commands.BaseCommands):
 
     def _print_source(self, filename, first, last):
         breaklist = self._obj.get_file_breaks(filename)
+        curframe = self._obj.curframe
         try:
             for lineno in range(first, last + 1):
                 line = linecache.getline(filename, lineno)
@@ -992,8 +1054,10 @@ class DebuggerCommands(commands.BaseCommands):
                     s.append("%5.5s%s" % (lineno,
                                           self._ui.prompt_format(" %RB%N") if
                                           (lineno in breaklist) else "  "))
-                    if lineno == self._obj.curframe.f_lineno:
+                    if lineno == curframe.f_lineno:
                         s.append(self._ui.prompt_format("%I->%N "))
+                    elif self._obj.tb_lineno[curframe] == lineno:
+                        s.append(self._ui.prompt_format("%I>>%N "))
                     else:
                         s.append("   ")
                     self._ui.print("".join(s), line.rstrip())

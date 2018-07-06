@@ -11,6 +11,7 @@ dist
 build
 .eggs
 .cache
+.pytest_cache
 sdist
 develop-eggs
 .installed.cfg

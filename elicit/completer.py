@@ -1,6 +1,3 @@
-#!/usr/bin/env python3.5
-# vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
-
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -64,3 +61,5 @@ def get_class_members(klass, rv=None):
 def get_globals():
     rv = keyword.kwlist + dir(builtins)
     return list(set(rv))  # Remove duplicates
+
+# vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
