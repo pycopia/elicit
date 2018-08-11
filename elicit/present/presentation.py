@@ -177,8 +177,6 @@ class DisplayHook:
             return
         _ = builtins._
         builtins._ = None
-        if callable(value):
-            value = value()
         if value is None:
             builtins._ = _
             return

@@ -1056,7 +1056,7 @@ class DebuggerCommands(commands.BaseCommands):
                                           (lineno in breaklist) else "  "))
                     if lineno == curframe.f_lineno:
                         s.append(self._ui.prompt_format("%I->%N "))
-                    elif self._obj.tb_lineno[curframe] == lineno:
+                    elif self._obj.tb_lineno.get(curframe, 0) == lineno:
                         s.append(self._ui.prompt_format("%I>>%N "))
                     else:
                         s.append("   ")
