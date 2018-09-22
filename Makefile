@@ -83,7 +83,7 @@ sign: bdist sdist
 	$(GPG) --detach-sign -a dist/elicit-*.tar.gz
 
 publish: sign
-	$(PYTHONBIN) -m twine upload dist/*
+	$(PYTHONBIN) -m twine upload -r pypi dist/*
 
 docs:
 	make -C docs html
