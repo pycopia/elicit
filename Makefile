@@ -8,6 +8,8 @@ PYVER := $(shell $(PYTHONBIN) -c 'import sys;print("{}.{}".format(sys.version_in
 ABIFLAGS := $(shell $(PYTHONBIN)-config --abiflags)
 SUFFIX := $(shell $(PYTHONBIN)-config --extension-suffix)
 
+export PYVER
+
 # Darwin using homebrew does not need sudo, but most other platforms do.
 OSNAME = $(shell uname)
 ifeq ($(OSNAME), Darwin)
@@ -16,7 +18,9 @@ else
 	SUDO = sudo
 endif
 
-.PHONY: info build install clean distclean develop test sdist requirements docs lint
+GPG = gpg2
+
+.PHONY: info build install clean distclean develop test sdist requirements docs lint bdist sign publish
 
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
@@ -61,19 +65,25 @@ clean:
 	find . -depth -type d -name __pycache__ -exec rm -rf {} \;
 
 distclean: clean
+	make -C docs clean
 	rm -rf elicit.egg-info
 	rm -rf dist
 	rm -rf build
-	make -C docs clean
 	rm -rf .cache
 	rm -rf .eggs
 
 sdist: requirements
 	$(PYTHONBIN) setup.py sdist
 
-publish:
-	$(PYTHONBIN) setup.py sdist upload
-	$(PYTHONBIN) setup.py bdist_wheel upload
+bdist:
+	$(PYTHONBIN) setup.py bdist_wheel
+
+sign: bdist sdist
+	$(GPG) --detach-sign -a dist/elicit-*.whl
+	$(GPG) --detach-sign -a dist/elicit-*.tar.gz
+
+publish: sign
+	$(PYTHONBIN) -m twine upload dist/*
 
 docs:
 	make -C docs html
