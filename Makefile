@@ -1,12 +1,12 @@
 # Makefile to simplify some common operations.
 
-# Find our exact Python 3 version.
-PYTHONBIN ?= $(shell python3-config --prefix)/bin/python$(PYVER)$(ABIFLAGS)
+# Find our exact Python 3 version. Override with PYTHONBIN variable before
+# calling.
+PYTHONBIN ?= $(shell python3-config --prefix)/bin/python3
 
 PYVER := $(shell $(PYTHONBIN) -c 'import sys;print("{}.{}".format(sys.version_info[0], sys.version_info[1]))')
 ABIFLAGS := $(shell $(PYTHONBIN)-config --abiflags)
 SUFFIX := $(shell $(PYTHONBIN)-config --extension-suffix)
-
 
 # Darwin using homebrew does not need sudo, but most other platforms do.
 OSNAME = $(shell uname)
@@ -48,7 +48,7 @@ install: build
 	$(PYTHONBIN) setup.py install --skip-build --optimize
 
 requirements:
-	$(SUDO) pip$(PYVER) install -r dev-requirements.txt
+	$(SUDO) $(PYTHONBIN) -m pip install -r dev-requirements.txt
 
 develop: requirements
 	$(PYTHONBIN) setup.py develop --user
