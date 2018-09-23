@@ -53,6 +53,7 @@ _old_handler = signal.signal(signal.SIGWINCH, _reset_size)
 
 clear = colors.clear
 
+
 def xterm_divider():
     lines = os.get_terminal_size().columns - 6
     line = '  ◀' + '═' * lines + '▶\n'
@@ -164,6 +165,10 @@ def warning(text):
 
 def get_resource(name):
     fn = os.path.join(PWD, "data", name)
+    if not os.path.exists(fn):
+        fn = os.path.join(os.path.dirname(__file__), "data", name)
+    if not os.path.exists(fn):
+        raise ValueError("Resource not found.")
     return open(fn, "rb").read()
 
 
@@ -276,7 +281,13 @@ else:
     readline.parse_and_bind('"\M-?": possible-completions')
     imgcat = xterm_imgcat
     divider = xterm_divider
+    print_url = xterm_print_url
+    URL = xterm_URL
     if "256" not in os.environ.get("TERM", "xterm"):
         warning("Colors my not display correctly.")
+
+
+if __name__ == "__main__":
+    init(sys.argv)
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab:fileencoding=utf-8
