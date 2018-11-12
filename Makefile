@@ -33,6 +33,7 @@ help:
 	@echo "  clean         to clean up build artifacts."
 	@echo "  distclean     to make source tree pristine."
 	@echo "  sdist         to build source distribution."
+	@echo "  bdist         to build binary distribution (wheel)."
 	@echo "  publish       to push to PyPI."
 	@echo "  docs          to build the documention."
 

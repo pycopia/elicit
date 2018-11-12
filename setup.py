@@ -11,13 +11,14 @@ with open('README.md') as fo:
 
 setup(
     name=NAME,
-    packages=["elicit"],
+    packages=["elicit", "elicit.present"],
     install_requires=[],
     scripts=glob("bin/*"),
-    setup_requires=['setuptools_scm'],
+    setup_requires=["setuptools_scm"],
     use_scm_version=True,
     test_suite="tests",
-    tests_require=['pytest'],
+    tests_require=["pytest"],
+    package_data={"elicit.present": ["data/*.png"]},
 
     description="Library for making command-style user interfaces.",
     long_description_content_type="text/markdown",
