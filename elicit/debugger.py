@@ -1143,7 +1143,7 @@ def post_mortem(t=None):
             DEBUG("No active exception!")
         else:
             p.print_exc("Active Exception:", val)
-    p.interaction(tb.tb_frame, tb)
+    p.interaction(t.tb_frame, t)
 
 
 def pm():
