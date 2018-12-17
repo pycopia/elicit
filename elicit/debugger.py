@@ -47,10 +47,13 @@ DebuggerQuit = bdb.BdbQuit
 
 
 def DEBUG(*args, **kwargs):
-    """Can use this instead of 'print' when debugging. Prints to stderr.
+    """You can use this instead of 'print' when debugging. Prints to stderr.
+
+    Emits nothing if run in "optimized" mode.
     """
-    kwargs["file"] = sys.stderr
-    print("DEBUG", *args, **kwargs)
+    if __debug__:
+        kwargs["file"] = sys.stderr
+        print("DEBUG", *args, **kwargs)
 
 
 def find_function(funcname, filename):
@@ -153,8 +156,20 @@ def run_editor(fname, lineno):
             ed = os.environ.get("EDITOR", "/bin/vi")
     else:
         ed = os.environ.get("EDITOR", "/bin/vi")
-    cmd = "%s +%d %s" % (ed, lineno, fname)  # assumes vi-like editor
+    cmd = '%s +%d "%s"' % (ed, lineno, fname)  # assumes vi-like editor
     os.system(cmd)
+
+
+def _print_exception(ui, ex, prefix=""):
+    ui.printf('{}%R{}%N: {}\n'.format(prefix, type(ex).__name__, ex))
+    orig = ex
+    while ex.__context__ is not None:
+        ex = ex.__context__
+        _print_exception(ui, ex, prefix=" While handling: ")
+    ex = orig
+    while ex.__cause__ is not None:
+        ex = ex.__cause__
+        _print_exception(ui, ex, prefix="    Raised from: ")
 
 
 class DebuggerTheme(themes.ANSITheme):
@@ -163,12 +178,12 @@ class DebuggerTheme(themes.ANSITheme):
 
 class Debugger(bdb.Bdb):
     def __init__(self, skip=None, io=None):
-        bdb.Bdb.__init__(self, skip)
+        super().__init__(skip)
         self._io = io or console.ConsoleIO()
         self.tb_lineno = {}
 
     def reset(self):
-        bdb.Bdb.reset(self)  # old style class
+        super().reset()
         self.forget()
         self._parser = None
         theme = DebuggerTheme(ps1="%gDebug%N:%S> ")
@@ -203,6 +218,8 @@ class Debugger(bdb.Bdb):
         caller's frame.
         If frame is not specified, debugging starts from caller's frame.
         """
+        if header is not None:
+            self._ui.print(header)
         if frame is None:
             frame = sys._getframe().f_back
         self.reset()
@@ -225,6 +242,9 @@ class Debugger(bdb.Bdb):
             self._ui.printf('%g--Call--%N\n')
             self.interaction(frame, None)
 
+    def message(self, message):
+            self._ui.print(message)
+
     def user_line(self, frame):
         """This function is called when we stop or break at this line."""
         self.interaction(frame, None)
@@ -232,7 +252,7 @@ class Debugger(bdb.Bdb):
     def user_return(self, frame, return_value):
         """This function is called when a return trap is set here."""
         frame.f_locals['__return__'] = return_value
-        self._ui.printf('%g--Return--%N\n')
+        self._ui.printf('%g--return-->%N {}\n'.format(_saferepr(return_value)))
         self.interaction(frame, None)
 
     def user_exception(self, frame, exc_tuple):
@@ -244,7 +264,9 @@ class Debugger(bdb.Bdb):
             exc_type_name = exc_type
         else:
             exc_type_name = exc_type.__name__
-        self.print_exc(exc_type_name, exc_value)
+        prefix = 'Internal ' if (not exc_traceback
+                                    and exc_type is StopIteration) else ''
+        self.print_exc(prefix, exc_value)
         self.interaction(frame, exc_traceback)
 
     # General interaction function
@@ -358,9 +380,9 @@ class Debugger(bdb.Bdb):
     def print_stack_entry(self, frame_lineno):
         frame, lineno = frame_lineno
         if frame is self.curframe:
-            self._ui.print(self._ui.prompt_format('%I>%N'), None)
+            self._ui.print(self._ui.prompt_format('%I>%N'), end="")
         else:
-            self._ui.print(' ', None)
+            self._ui.print(' ', end="")
         self._ui.print(self.format_stack_entry(frame_lineno))
         self.lineno = None
 
@@ -368,7 +390,7 @@ class Debugger(bdb.Bdb):
         frame, lineno = frame_lineno
         filename = self.canonic(frame.f_code.co_filename)
         s = []
-        s.append(self._ui.prompt_format("%%y%s%%N(%%Y%r%%N) in " % (filename, lineno)))
+        s.append(self._ui.prompt_format("%y{}%N(%Y{!r}%N) in ".format(filename, lineno)))
         if frame.f_code.co_name:
             s.append(frame.f_code.co_name)
         else:
@@ -388,11 +410,8 @@ class Debugger(bdb.Bdb):
             s.append(line.strip())
         return "".join(s)
 
-    def print_exc(self, ex, val):
-        self._ui.printf('%R{}:%N: {}\n'.format(ex, val))
-        while val.__cause__ is not None:
-            val = val.__cause__
-            self.print_exc("Because: {}".format(val.__class__.__name__), val)
+    def print_exc(self, prefix, val):
+        _print_exception(self._ui, val, prefix=prefix)
 
     def debug(self, arg):
         sys.settrace(None)
@@ -430,7 +449,7 @@ class Debugger(bdb.Bdb):
             return es
         except:  # noqa
             ex, val, t = sys.exc_info()
-            self.print_exc(ex, val)
+            self.print_exc("debug_script:", val)
             self.interaction(t.tb_frame, t)
             return 99
 
@@ -511,10 +530,12 @@ class DebuggerCommands(commands.BaseCommands):
         sys.ps1, sys.ps2 = "%GPython%N:%S> ", "more> "
         oc = readline.get_completer()
         readline.set_completer(completer.Completer(ns).complete)
-        console.interact(banner="You are now in Python. ^D exits.",
-                         exitmsg="Resuming debugger.")
-        readline.set_completer(oc)
-        sys.ps1, sys.ps2 = saveps1, saveps2
+        try:
+            console.interact(banner="You are now in Python. ^D exits.",
+                             exitmsg="Resuming debugger.")
+        finally:
+            readline.set_completer(oc)
+            sys.ps1, sys.ps2 = saveps1, saveps2
 
     def brk(self, arguments):
         """Set a break point.
@@ -893,7 +914,7 @@ class DebuggerCommands(commands.BaseCommands):
             self._ui.print("  )")
             s = []
             for name in co.co_varnames[n:]:
-                val = local.get(name, "*** undefined ***")
+                val = local.get(name, "*** unassigned ***")
                 s.append("%25.25s = %s" % (name, _saferepr(val)))
             if s:
                 self._ui.print("  Compiled locals:")
@@ -921,8 +942,9 @@ class DebuggerCommands(commands.BaseCommands):
         try:
             self._ui.print(repr(self._obj.getval(expression)))
         except:  # noqa
-            ex, val = sys.exc_info()[:2]
-            self._ui.error("{}: {}".format(ex.__name__, val))
+            ex = sys.exc_info()[1]
+            _print_exception(self._ui, ex)
+
 
     def info(self, arguments):
         """Print information about the current frame's code.
@@ -990,12 +1012,8 @@ class DebuggerCommands(commands.BaseCommands):
         try:
             value = eval(arg, self._obj.curframe.f_globals, self._obj.curframe.f_locals)
         except:  # noqa
-            t, v = sys.exc_info()[:2]
-            if isinstance(t, str):
-                exc_type_name = t
-            else:
-                exc_type_name = t.__name__
-            self._ui.print('***', exc_type_name + ':', repr(v))
+            v = sys.exc_info()[1]
+            self._ui.print('*** {}: {}'.format(type(v).__name__, v))
             return
         # Is it a function?
         try:
@@ -1099,31 +1117,46 @@ def runcall(*args):
     return Debugger().runcall(*args)
 
 
-def set_trace(frame=None, start=0):
-    Debugger().set_trace(frame, start)
+def set_trace(*, header=None, frame=None, start=0):
+    Debugger().set_trace(header=header, frame=frame, start=start)
 
 
-# post mortems used to debug
-def post_mortem(tb=None, exc=None, val=None, io=None):
+# post mortems used to debug, compatible with pdb
+def post_mortem(t=None):
     "Start debugging at the given traceback."
-    if tb is None:
-        exc, val, tb = sys.exc_info()
-    if tb is None:
+    exc = val = None
+    if t is None:
+        exc, val, t = sys.exc_info()
+    if t is None:
         raise ValueError("A valid traceback must be passed if no "
                          "exception is being handled")
-    p = Debugger(io=io)
+    p = Debugger()
     p.reset()
-    while tb.tb_next is not None:
-        tb = tb.tb_next
+    while t.tb_next is not None:
+        t = t.tb_next
     if exc and val:
-        p.print_exc(exc.__name__, val)
+        p.print_exc("Post Mortem Exception: ", val)
     else:
         exc, val, _ = sys.exc_info()
         del _
         if exc is None:
             DEBUG("No active exception!")
         else:
-            p.print_exc(exc.__name__, val)
+            p.print_exc("Active Exception:", val)
+    p.interaction(tb.tb_frame, tb)
+
+
+def pm():
+    post_mortem(sys.last_traceback)
+
+
+def from_exception(ex, io=None):
+    tb = ex.__traceback__
+    p = Debugger(io=io)
+    p.reset()
+    while tb.tb_next is not None:
+        tb = tb.tb_next
+    p.print_exc("", ex)
     p.interaction(tb.tb_frame, tb)
 
 
@@ -1138,13 +1171,25 @@ def debug(method, *args, **kwargs):
         if ex in (SyntaxError, IndentationError, KeyboardInterrupt):
             sys.__excepthook__(ex, val, tb)
         else:
-            post_mortem(tb, ex, val)
+            from_exception(val)
 
 
-def pm(io=None):
-    "Start debugging with the system's last traceback."
-    ex, val, tb = sys.exc_info()
-    post_mortem(tb, ex, val, io)
+def debugger_hook(exc, value, tb):
+    if (not hasattr(sys.stderr, "isatty") or
+        not sys.stderr.isatty() or exc in (SyntaxError,
+                                           IndentationError,
+                                           KeyboardInterrupt)):
+        sys.__excepthook__(exc, value, tb)
+    else:
+        post_mortem(tb)
+
+
+def autodebug(on=True):
+    """Enables this debugger for all uncaught exceptions."""
+    if on:
+        sys.excepthook = debugger_hook
+    else:
+        sys.excepthook = sys.__excepthook__
 
 
 def debug_script(filename):
@@ -1154,8 +1199,8 @@ def debug_script(filename):
     return db.debug_script(filename)
 
 
-if __name__ == "__main__":
-    del sys.argv[0]
-    sys.exit(debug_script(sys.argv[0]))
+# Reset excepthook to default because some Linux distros put something
+# non-default there that is very annoying.
+sys.excepthook = sys.__excepthook__
 
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

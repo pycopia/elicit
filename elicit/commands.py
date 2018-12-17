@@ -132,9 +132,8 @@ class BaseCommands:
         for arg in argv[1:]:
             try:
                 self._environ.export(arg)
-            except:  # noqa
-                ex, val = sys.exc_info()[:2]
-                self._ui.print("** could not set value: %s (%s)" % (ex, val))
+            except Exception as exc:  # noqa
+                self._ui.print("** could not set value: (%s)" % (exc,))
 
     def unset(self, arguments):
         """Unsets the environment variable.
@@ -226,9 +225,8 @@ class BaseCommands:
                 else:
                     del argv[0]  # remove the '='
             self._aliases[name] = argv
-        except:  # noqa
-            ex, val = sys.exc_info()[:2]
-            self._ui.error("{}: {}".format(ex.__name__, val))
+        except Exception as exc:  # noqa
+            self._ui.error("{}: {}".format(exc.__name__, exc))
             self._ui.print("alias: Could not set alias. Usage: alias name=value")
             return 1
 

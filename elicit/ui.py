@@ -68,9 +68,9 @@ class UserInterface:
     def clone(self, theme=None):
         return self.__class__(self._io, self.environ.copy(), theme or self._theme)
 
-    def print(self, *objs):
+    def print(self, *objs, **kwargs):
         try:
-            self._io.print(*objs)
+            self._io.print(*objs, **kwargs)
         except exceptions.PageQuit:
             return
 

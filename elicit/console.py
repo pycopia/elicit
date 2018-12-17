@@ -165,7 +165,7 @@ if __name__ == "__main__":
         io.write("hello, type something\n")
         io.flush()
         print(io.readline())
-        io.print("Test print")
+        io.print("Test print ", end="")
         io.error("An error.\n")
 
     lines = []
