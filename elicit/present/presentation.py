@@ -18,10 +18,11 @@ import readline
 import subprocess
 
 from elicit import colors
+from elicit import debugger
 
 
 __all__ = ['imgcat', 'divider', 'cowsay', 'dedent', 'error', 'head', 'warning',
-           'bullet', 'para', 'get_resource', 'print_image', 'debugger', 'init',
+           'bullet', 'para', 'get_resource', 'print_image', 'init',
            'clear', 'print_url', 'URL', 'open_resource', 'SlideController']
 
 
@@ -195,17 +196,6 @@ class DisplayHook:
         builtins._ = value
 
 
-class _MakeDebugger(object):
-    def __getattr__(self, name):
-        global debugger
-        modname = os.environ.get("PYTHON_DEBUGGER", "pdb")
-        __import__(modname)
-        debugger = sys.modules[modname]
-        return getattr(debugger, name)
-
-
-debugger = _MakeDebugger()
-
 
 def debugger_hook(exc, value, tb):
     if exc is NameError:
@@ -215,7 +205,7 @@ def debugger_hook(exc, value, tb):
     elif exc in (IndentationError, KeyboardInterrupt):
         sys.__excepthook__(exc, value, tb)
     else:
-        debugger.post_mortem(tb, exc, value)
+        debugger.from_exception(value)
 
 
 class SlideController:

@@ -21,7 +21,7 @@ def debugger_hook(exc, value, tb):
         sys.__excepthook__(exc, value, tb)
     else:
         print("Uncaught exception:", exc.__name__, ":", value, file=sys.stderr)
-        debugger.post_mortem(tb, exc, value)
+        debugger.from_exception(value)
 
 sys.excepthook = debugger_hook
 
