@@ -23,6 +23,8 @@ import dis
 import code
 import re
 import readline
+import inspect
+import traceback
 
 from reprlib import Repr
 
@@ -172,6 +174,74 @@ def _print_exception(ui, ex, prefix=""):
         _print_exception(ui, ex, prefix="    Raised from: ")
 
 
+# Useful debug helpers for coroutines copied from curio.
+def _get_coroutine_stack(coro):
+    """Extracts a list of stack frames from a chain of generator/coroutine
+    calls.
+    """
+    frames = []
+    while coro:
+        if hasattr(coro, 'cr_frame'):
+            f = coro.cr_frame
+            coro = coro.cr_await
+        elif hasattr(coro, 'ag_frame'):
+            f = coro.ag_frame
+            coro = coro.ag_await
+        elif hasattr(coro, 'gi_frame'):
+            f = coro.gi_frame
+            coro = coro.gi_yieldfrom
+        else:
+            # Note: Can't proceed further.  Need the ags_gen or agt_gen attribute
+            # from an asynchronous generator.  See https://bugs.python.org/issue32810
+            f = None
+            coro = None
+
+        if f is not None:
+            frames.append(f)
+    return frames
+
+
+# Create a stack traceback for a coroutine
+def _coroutine_format_stack(coro, complete=False):
+    """Formats a traceback from a stack of coroutines/generators.
+    """
+    dirname = os.path.dirname(__file__)
+    extracted_list = []
+    checked = set()
+    for f in _get_coroutine_stack(coro):
+        lineno = f.f_lineno
+        co = f.f_code
+        filename = co.co_filename
+        name = co.co_name
+        if not complete and os.path.dirname(filename) == dirname:
+            continue
+        if filename not in checked:
+            checked.add(filename)
+            linecache.checkcache(filename)
+        line = linecache.getline(filename, lineno, f.f_globals)
+        extracted_list.append((filename, lineno, name, line))
+
+    if not extracted_list:
+        resp = 'No stack for %r' % coro
+    else:
+        resp = 'Stack for %r (most recent call last):\n' % coro
+        resp += ''.join(traceback.format_list(extracted_list))
+    return resp
+
+
+# Return the (filename, lineno) where a coroutine is currently executing
+def _coroutine_where(coro):
+    dirname = os.path.dirname(__file__)
+    for f in _get_coroutine_stack(coro):
+        lineno = f.f_lineno
+        co = f.f_code
+        filename = co.co_filename
+        if os.path.dirname(filename) == dirname:
+            continue
+        return filename, lineno
+    return None, None
+
+
 class DebuggerTheme(themes.ANSITheme):
     pass
 
@@ -180,16 +250,20 @@ class Debugger(bdb.Bdb):
     def __init__(self, skip=None, io=None):
         super().__init__(skip)
         self._io = io or console.ConsoleIO()
+        self._ui = None
         self.tb_lineno = {}
+        self._stack_stack = []
+        self.forget()
 
     def reset(self):
         super().reset()
         self.forget()
         self._parser = None
-        theme = DebuggerTheme(ps1="%gDebug%N:%S> ")
-        e = env.Environ()
-        self._ui = ui.UserInterface(self._io, environment=e, theme=theme)
-        self._ui.register_expansion("S", self._expansions)
+        if self._ui is None:
+            theme = DebuggerTheme(ps1="%L:%gDebug%N:%S> ")
+            e = env.Environ()
+            self._ui = ui.UserInterface(self._io, environment=e, theme=theme)
+            self._ui.register_expansion("S", self._expansions)
 
     def _expansions(self, c):
         if c == "S":  # current frame over total frames in backtrace
@@ -200,20 +274,35 @@ class Debugger(bdb.Bdb):
         self.stack = []
         self.curindex = 0
         self.curframe = None
+        self.curexception = None
         self.tb_lineno.clear()
 
-    def setup(self, f, t):
+    def setup(self, f, t, exception=None):
         self.forget()
         self.stack, self.curindex = self.get_stack(f, t)
         self.curframe = self.stack[self.curindex][0]
+        self.curexception = exception
         while t:
             lineno = lasti2lineno(t.tb_frame.f_code, t.tb_lasti)
             self.tb_lineno[t.tb_frame] = lineno
             t = t.tb_next
 
+    def push_traceback(self, f, t, exception=None):
+        self._stack_stack.append((self.stack, self.curindex, self.curframe, self.curexception))
+        self.setup(f, t, exception)
+
+    def pop_traceback(self):
+        try:
+            val = self._stack_stack.pop()
+        except IndexError:
+            return False
+        else:
+            self.stack, self.curindex, self.curframe, self.curexception = val
+            return True
+
     # Override Bdb methods
 
-    def set_trace(self, frame=None, start=0):
+    def set_trace(self, header=None, frame=None, start=0):
         """Start debugging from `frame`, or `start` frames back from
         caller's frame.
         If frame is not specified, debugging starts from caller's frame.
@@ -260,18 +349,13 @@ class Debugger(bdb.Bdb):
         but only if we are to stop at or just below this level."""
         exc_type, exc_value, exc_traceback = exc_tuple
         frame.f_locals['__exception__'] = exc_type, exc_value
-        if isinstance(exc_type, str):
-            exc_type_name = exc_type
-        else:
-            exc_type_name = exc_type.__name__
-        prefix = 'Internal ' if (not exc_traceback
-                                    and exc_type is StopIteration) else ''
+        prefix = 'Internal ' if (not exc_traceback and exc_type is StopIteration) else ''
         self.print_exc(prefix, exc_value)
-        self.interaction(frame, exc_traceback)
+        self.interaction(frame, exc_traceback, exc_value)
 
     # General interaction function
-    def interaction(self, frame, traceback):
-        self.setup(frame, traceback)
+    def interaction(self, frame, traceback, exception=None):
+        self.setup(frame, traceback, exception)
         self.print_stack_entry(self.stack[self.curindex])
         if self._parser is None:
             cmd = DebuggerCommands(self._ui, debugger=self, aliases=_DEFAULT_ALIASES)
@@ -314,6 +398,32 @@ class Debugger(bdb.Bdb):
         self.lineno = None
         return None
 
+    def cause(self, exception=None):
+        exc = exception or self.curexception
+        if exc is None:
+            self._ui.printf('%yNo current exception.%N\n')
+            return False
+        exc = exc.__cause__
+        if exc is None:
+            self._ui.printf('%yNo cause exception.%N\n')
+            return False
+        self.print_exc("Cause:", exc)
+        self.push_traceback(exc.__traceback__.tb_frame, exc.__traceback__, exc)
+        return True
+
+    def switch_context(self, exception=None):
+        exc = exception or self.curexception
+        if exc is None:
+            self._ui.printf('%yNo current exception.%N\n')
+            return False
+        exc = exc.__context__
+        if exc is None:
+            self._ui.printf('%yNo context exception.%N\n')
+            return False
+        self.print_exc("Context:", exc)
+        self.push_traceback(exc.__traceback__.tb_frame, exc.__traceback__, exc)
+        return True
+
     def getval(self, arg):
         return eval(arg, self.curframe.f_globals, self.curframe.f_locals)
 
@@ -322,11 +432,6 @@ class Debugger(bdb.Bdb):
             return self.curframe.f_locals['__return__']
         else:
             return None
-
-    def defaultFile(self):
-        """Produce a reasonable default."""
-        filename = self.curframe.f_code.co_filename
-        return filename
 
     def lineinfo(self, identifier):
         failed = (None, None, None)
@@ -349,7 +454,7 @@ class Debugger(bdb.Bdb):
             if len(parts) == 0:
                 return failed
         # Best first guess at file to look at
-        fname = self.defaultFile()
+        fname = self.curframe.f_code.co_filename
         if len(parts) == 1:
             item = parts[0]
         else:
@@ -450,7 +555,7 @@ class Debugger(bdb.Bdb):
         except:  # noqa
             ex, val, t = sys.exc_info()
             self.print_exc("debug_script:", val)
-            self.interaction(t.tb_frame, t)
+            self.interaction(t.tb_frame, t, val)
             return 99
 
 
@@ -496,7 +601,12 @@ class DebuggerCommands(commands.BaseCommands):
         self._namespace = self._obj.curframe.f_locals
 
     def finalize(self):
-        self._obj.set_quit()
+        self._ui.environ["SHLVL"] -= 1
+        if not self._obj.pop_traceback():
+            self._obj.set_quit()
+
+    def clone(self):
+        return self.__class__(self._ui, self._obj, aliases=self._aliases)
 
     def default_command(self, arguments):
         """If not a debugger command, evaluate it as a statement."""
@@ -582,7 +692,7 @@ class DebuggerCommands(commands.BaseCommands):
             try:
                 lineno = int(lineno)
             except ValueError as msg:
-                self._ui.print('*** Bad lineno:', lineno)
+                self._ui.print('*** Bad lineno:', lineno, msg)
                 return
         else:
             # no colon; can be lineno or function
@@ -610,7 +720,7 @@ class DebuggerCommands(commands.BaseCommands):
                         return
                     lineno = int(ln)
         if not filename:
-            filename = self._obj.defaultFile()
+            filename = self.curframe.f_code.co_filename
         # Check for reasonable breakpoint
         line = checkline(filename, lineno, self._ui)
         if line:
@@ -840,6 +950,26 @@ class DebuggerCommands(commands.BaseCommands):
             else:
                 self._reset_namespace()
 
+    def switch(self, arguments):
+        """Switch to the context exception.
+
+        If the current exception was raised inside another exception handler,
+        switch to that context for debugging.
+        """
+        if self._obj.switch_context():
+            self._reset_namespace()
+            raise exceptions.NewCommand(self.clone())
+
+    def cause(self, arguments):
+        """Switch to the original exception.
+
+        If the current exception being handled was raised from another, switch
+        to the from exception traceback.
+        """
+        if self._obj.cause():
+            self._reset_namespace()
+            raise exceptions.NewCommand(self.clone())
+
     def debug(self, arguments):
         """Enter a recursive debugger.
 
@@ -863,25 +993,22 @@ class DebuggerCommands(commands.BaseCommands):
     def args(self, arguments):
         """Print the arguments of the current function."""
         f = self._obj.curframe
-        co = f.f_code
-        dict = f.f_locals
-        n = co.co_argcount
-        if co.co_flags & 4:
-            n = n + 1
-        if co.co_flags & 8:
-            n = n + 1
-        for i in range(n):
-            name = co.co_varnames[i]
-            self._ui.print(name, '=', None)
-            if name in dict:
-                self._ui.print(dict[name])
-            else:
-                self._ui.print("*** undefined ***")
+        arginfo = inspect.getargvalues(f)
+        self._ui.print(f.f_code.co_name, inspect.formatargvalues(arginfo.args,
+                       arginfo.varargs, arginfo.keywords, arginfo.locals,
+                       formatvalue=lambda value: '=' + _saferepr(value)))
 
     def retval(self, arguments):
         """Show return value."""
         val = self._obj.retval()
         self._ui.print(_saferepr(val))
+
+    def exception(self, arguments):
+        """Show the currently debugged exception."""
+        if self._obj.curexception is not None:
+            self._obj.print_exc("Current exception:", self._obj.curexception)
+        else:
+            self._ui.print("No current exception set.")
 
     def show(self, arguments):
         """Shows the current frame's object and values.
@@ -900,37 +1027,35 @@ class DebuggerCommands(commands.BaseCommands):
                 except KeyError:
                     self._ui.print("%r not found." % (name,))
         else:
+            args, varargs, varkw, local = inspect.getargvalues(f)
             self._ui.printf("%I{}%N (\n".format(f.f_code.co_name or "<lambda>"))
-            co = f.f_code
-            n = co.co_argcount
-            if co.co_flags & 4:
-                n += 1
-            if co.co_flags & 8:
-                n += 1
-            local = f.f_locals
-            for name in co.co_varnames[:n]:
+            for name in args:
                 val = local.get(name, "*** no formal ***")
                 self._ui.print("%15.15s = %s," % (name, _saferepr(val)))
+            if varargs is not None:
+                val = local.get(varargs, "*** no formal ***")
+                self._ui.print("%15.15s = %s," % ("*" + varargs, _saferepr(val)))
+            if varkw is not None:
+                val = local.get(varkw, "*** no formal ***")
+                self._ui.print("%15.15s = %s," % ("**" + varkw, _saferepr(val)))
             self._ui.print("  )")
+            nargs = len(args) + (1 if varargs is not None else 0) + (1 if varkw is not None else 0)
             s = []
-            for name in co.co_varnames[n:]:
-                val = local.get(name, "*** unassigned ***")
-                s.append("%25.25s = %s" % (name, _saferepr(val)))
+            for localname in f.f_code.co_varnames[nargs:]:
+                val = local.get(localname, "*** unassigned ***")
+                s.append("%15.15s = %s" % (localname, _saferepr(val)))
             if s:
                 self._ui.print("  Compiled locals:")
                 self._ui.print("\n".join(s))
             # find and print local variables that were not defined when
             # compiled. These must have been "stuffed" by other code.
-            extra = []
-            varnames = list(co.co_varnames)  # to get list methods
-            for name, val in local.items():
-                try:
-                    varnames.index(name)
-                except ValueError:
-                    extra.append("%25.25s = %s" % (name, _saferepr(val)))
-            if extra:
+            local = local.copy()
+            for localname in f.f_code.co_varnames:
+                local.pop(localname, None)
+            if local:
                 self._ui.print("  Extra locals:")
-                self._ui.print("\n".join(extra))
+                for name, val in local.items():
+                    self._ui.print("%15.15s = %s" % (name, _saferepr(val)))
 
     def print(self, arguments):
         """Print the value of the expression in the current frame.
@@ -944,7 +1069,6 @@ class DebuggerCommands(commands.BaseCommands):
         except:  # noqa
             ex = sys.exc_info()[1]
             _print_exception(self._ui, ex)
-
 
     def info(self, arguments):
         """Print information about the current frame's code.
@@ -1005,41 +1129,58 @@ class DebuggerCommands(commands.BaseCommands):
         """Prints the type of the argument.
 
         Usage:
-
-            whatis <name>
+            whatis <name>...
         """
         arg = " ".join(arguments["argv"][1:])
         try:
             value = eval(arg, self._obj.curframe.f_globals, self._obj.curframe.f_locals)
         except:  # noqa
             v = sys.exc_info()[1]
-            self._ui.print('*** {}: {}'.format(type(v).__name__, v))
+            self._ui.printf('*** %R{}%N: {}\n'.format(type(v).__name__, v))
             return
-        # Is it a function?
-        try:
-            code = value.__code__
-        except AttributeError:
-            pass
-        else:
-            self._ui.print('Function', code.co_name)
-            return
-        # Is it an instance method?
-        try:
-            code = value.__func__.__code__
-        except AttributeError:
-            pass
-        else:
-            self._ui.print('Method', code.co_name)
-            return
+        if inspect.ismodule(value):
+            filename = value.__file__ if value.__file__ else "builtin module"
+            self._ui.print('Module:', filename)
+        elif inspect.isasyncgenfunction(value):
+            self._ui.print('Async Gen function:', value.__name__, inspect.signature(value))
+        elif inspect.isasyncgen(value):
+            self._ui.print('Async Gen:', value.__name__, inspect.signature(value))
+        elif inspect.iscoroutine(value):
+            self._ui.print('Coroutine:', value)
+            self._ui.print('    state:', inspect.getcoroutinestate(value))
+            if inspect.isawaitable(value):
+                self._ui.print('  and awaitable.')
+                self._ui.print('  stack:', _coroutine_format_stack(value, complete=False))
+        elif inspect.isgenerator(value):
+            self._ui.print('Generator:', value)
+            self._ui.print('    state:', inspect.getgeneratorstate(value))
+            if inspect.isawaitable(value):
+                self._ui.print('  and awaitable.')
+        elif inspect.iscoroutinefunction(value):
+            self._ui.print('Coroutine function:', value.__name__, inspect.signature(value))
+        elif inspect.isgeneratorfunction(value):
+            self._ui.print('Generator function:', value.__name__, inspect.signature(value))
+        elif inspect.isfunction(value):
+            self._ui.print('Function:', value.__name__, inspect.signature(value))
+        elif inspect.ismethod(value):
+            self._ui.print('Method:', value.__name__, inspect.signature(value))
+        elif inspect.iscode(value):
+            self._ui.print('Code object:', value.co_name)
+        elif inspect.isclass(value):
+            self._ui.print('Class:', value.__name__)
+        elif inspect.ismethoddescriptor(value):
+            self._ui.print('Method descriptor:', value.__name__)
+        elif inspect.isdatadescriptor(value):
+            self._ui.print('Data descriptor:', value.__name__)
         # None of the above...
-        self._ui.print(type(value))
+        else:
+            self._ui.print("Type of:", type(value))
 
     def search(self, arguments):
         """Search the source file for the regular expression pattern.
 
         Usage:
-
-            search <pattern>
+            search <pattern>...
     """
         patt = re.compile(" ".join(arguments["argv"][1:]))
         filename = self._obj.curframe.f_code.co_filename
@@ -1143,7 +1284,7 @@ def post_mortem(t=None):
             DEBUG("No active exception!")
         else:
             p.print_exc("Active Exception:", val)
-    p.interaction(t.tb_frame, t)
+    p.interaction(t.tb_frame, t, val)
 
 
 def pm():
@@ -1151,13 +1292,14 @@ def pm():
 
 
 def from_exception(ex, io=None):
+    """Start debugging from the place of the given exception instance."""
     tb = ex.__traceback__
     p = Debugger(io=io)
     p.reset()
     while tb.tb_next is not None:
         tb = tb.tb_next
     p.print_exc("", ex)
-    p.interaction(tb.tb_frame, tb)
+    p.interaction(tb.tb_frame, tb, ex)
 
 
 def debug(method, *args, **kwargs):
@@ -1175,8 +1317,8 @@ def debug(method, *args, **kwargs):
 
 
 def debugger_hook(exc, value, tb):
-    if (not hasattr(sys.stderr, "isatty") or
-        not sys.stderr.isatty() or exc in (SyntaxError,
+    if (not hasattr(sys.stderr, "isatty") or not
+            sys.stderr.isatty() or exc in (SyntaxError,
                                            IndentationError,
                                            KeyboardInterrupt)):
         sys.__excepthook__(exc, value, tb)
