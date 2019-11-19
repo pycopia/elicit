@@ -60,10 +60,10 @@ class UserInterface:
 
     def set_theme(self, theme):
         self._theme = theme
-        self.environ.setdefault("PS1", self._theme.ps1)
-        self.environ.setdefault("PS2", self._theme.ps2)
-        self.environ.setdefault("PS3", self._theme.ps3)
-        self.environ.setdefault("PS4", self._theme.ps4)
+        self.environ["PS1"] = self._theme.ps1
+        self.environ["PS2"] = self._theme.ps2
+        self.environ["PS3"] = self._theme.ps3
+        self.environ["PS4"] = self._theme.ps4
 
     def clone(self, theme=None):
         return self.__class__(self._io, self.environ.copy(), theme or self._theme)

@@ -147,7 +147,6 @@ class CommandParser:
                 val = sys.exc_info()[1]
                 self.pop_controller(val.value)
             except exceptions.NewCommand as cmdex:
-
                 self.push_controller(controller.CommandController(cmdex.value))
         if self._fsm.current_state:  # non-zero, stuff left
             self._buf = text[i:]
@@ -207,7 +206,7 @@ class CommandParser:
         else:
             fsm.push(c)
         try:
-            val = self._controller.environ.expand(fsm.varname)
+            val = self._controller.environ.expand(fsm.varname) or ""
         except:  # noqa
             ex, val, tb = sys.exc_info()
             self._controller._ui.error("Could not expand variable "
