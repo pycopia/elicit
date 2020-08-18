@@ -25,6 +25,8 @@ import re
 import readline
 import inspect
 import traceback
+import _thread
+import threading
 
 from reprlib import Repr
 
@@ -1323,7 +1325,7 @@ def debugger_hook(exc, value, tb):
                                            KeyboardInterrupt)):
         sys.__excepthook__(exc, value, tb)
     else:
-        post_mortem(tb)
+        from_exception(value)
 
 
 def autodebug(on=True):
@@ -1332,6 +1334,9 @@ def autodebug(on=True):
         sys.excepthook = debugger_hook
     else:
         sys.excepthook = sys.__excepthook__
+        sys.unraisablehook = sys.__unraisablehook__
+        sys.breakpointhook = sys.__breakpointhook__
+        threading.excepthook = _thread._excepthook
 
 
 def debug_script(filename):
