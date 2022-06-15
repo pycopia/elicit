@@ -196,7 +196,6 @@ class DisplayHook:
         builtins._ = value
 
 
-
 def debugger_hook(exc, value, tb):
     if exc is NameError:
         error(value.args[0])
@@ -268,7 +267,7 @@ if sys.platform == "darwin":
         URL = xterm_URL
 else:
     readline.parse_and_bind("tab: complete")
-    readline.parse_and_bind('"\M-?": possible-completions')
+    readline.parse_and_bind(r'"\M-?": possible-completions')
     imgcat = xterm_imgcat
     divider = xterm_divider
     print_url = xterm_print_url

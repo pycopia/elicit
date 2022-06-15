@@ -1,7 +1,5 @@
 # python3.7
 
-# Copyright Ouster, Inc.
-
 """Python REPL mixin class for Command objects.
 """
 

@@ -334,7 +334,7 @@ class Debugger(bdb.Bdb):
             self.interaction(frame, None)
 
     def message(self, message):
-            self._ui.print(message)
+        self._ui.print(message)
 
     def user_line(self, frame):
         """This function is called when we stop or break at this line."""

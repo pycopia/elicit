@@ -102,7 +102,7 @@ def color(text, fg, bg=None, bold=False):
         raise ValueError("Bad color value: {},{}".format(fg, bg))
 
 
-def color256(text: str, fg: int, bg: int=0):
+def color256(text: str, fg: int, bg: int = 0):
     sys.stdout.write("\x1b[38;5;{};48;5;{}m".format(fg, bg))
     sys.stdout.write(text)
     sys.stdout.write(RESET)

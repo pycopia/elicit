@@ -20,7 +20,6 @@ text, and also defines the command options.
 
 __all__ = ['BaseCommands', 'ObjectCommands']
 
-import sys
 import textwrap
 import functools
 import readline

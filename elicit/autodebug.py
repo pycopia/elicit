@@ -1,4 +1,4 @@
-#!/usr/bin/python3.6
+# python3
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,10 +33,6 @@ printed at the terminal and the program ending.
 After this import, an interactive debugger prompt will be started instead.
 """
 
-import sys
-
 from elicit import debugger
 
 debugger.autodebug()
-
-# vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab

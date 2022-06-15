@@ -427,7 +427,7 @@ class UserInterface:
 
     def _error(self, input_symbol, fsm):
         self._io.errlog(
-            'Prompt string error: {}\n{!r}'.format(input_symbol))
+            'Prompt string error: {!r}'.format(input_symbol))
         fsm.reset()
 
     def _addtext(self, c, fsm):
