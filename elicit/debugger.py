@@ -604,8 +604,8 @@ class DebuggerCommands(commands.BaseCommands):
 
     def finalize(self):
         self._ui.environ["SHLVL"] -= 1
-        if not self._obj.pop_traceback():
-            self._obj.set_quit()
+        self._obj.pop_traceback()
+        sys.settrace(None)
 
     def clone(self):
         return self.__class__(self._ui, self._obj, aliases=self._aliases)
@@ -990,6 +990,7 @@ class DebuggerCommands(commands.BaseCommands):
         """quit or exit - Quit from the debugger.
         The program being executed is aborted.
         """
+        self._obj.set_quit()
         super(DebuggerCommands, self).exit(arguments)
 
     def args(self, arguments):
